@@ -1,25 +1,273 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createGame, sanitizeProfile, startTournament, interact, step, finish, buyAsset, enterCar, damage, PLACES, PLANTS, blocked, shoot, reload, heal, lineClear, distance } from '../app/game/model.js';
+import {
+  createGame,
+  sanitizeProfile,
+  startTournament,
+  interact,
+  step,
+  finish,
+  buyAsset,
+  enterCar,
+  damage,
+  PLACES,
+  PLANTS,
+  blocked,
+  shoot,
+  reload,
+  heal,
+  lineClear,
+  distance,
+} from '../app/game/model.js';
 
-const playing=()=>{const g=createGame({},42);g.status='playing';return g;};
-const at=(g,p)=>{g.player.x=p.x;g.player.z=p.z;};
-function qualify(g){startTournament(g);for(const c of g.crates.slice(0,4)){at(g,c);assert.equal(interact(g),true);}at(g,PLACES.bank);assert.equal(interact(g),true);}
-function final(g){qualify(g);for(const p of PLANTS){at(g,p);interact(g);}assert.equal(g.phase,'escape');at(g,PLACES.exit);}
+const playing = () => {
+  const g = createGame({}, 42);
+  g.status = 'playing';
+  return g;
+};
+const at = (g, p) => {
+  g.player.x = p.x;
+  g.player.z = p.z;
+};
+function qualify(g) {
+  startTournament(g);
+  for (const c of g.crates.slice(0, 4)) {
+    at(g, c);
+    assert.equal(interact(g), true);
+  }
+  at(g, PLACES.bank);
+  assert.equal(interact(g), true);
+}
+function final(g) {
+  qualify(g);
+  for (const p of PLANTS) {
+    at(g, p);
+    interact(g);
+  }
+  assert.equal(g.phase, 'escape');
+  at(g, PLACES.exit);
+}
 
-test('all objectives and loot are accessible outside buildings',()=>{const g=playing();for(const p of [...Object.values(PLACES),...PLANTS,...g.crates,...g.cars])assert.equal(blocked(p.x,p.z),false,JSON.stringify(p));});
-test('99 certificates cannot qualify; 100 consumed exactly once',()=>{const g=playing();startTournament(g);at(g,PLACES.bank);g.player.certificates=99;assert.equal(interact(g),false);assert.equal(g.phase,'debt');g.player.certificates=100;assert.equal(interact(g),true);assert.equal(g.player.certificates,0);interact(g);assert.equal(g.phase,'power');assert.equal(g.player.certificates,0);});
-test('a crate pays only once per pickup and resets when match starts',()=>{const g=playing();const c=g.crates[0];at(g,c);interact(g);const cash=g.profile.cash;interact(g);assert.equal(g.profile.cash,cash);startTournament(g);assert.equal(c.taken,false);interact(g);interact(g);assert.equal(g.player.certificates,25);});
-test('three distinct power plants are required',()=>{const g=playing();qualify(g);at(g,PLANTS[0]);interact(g);interact(g);interact(g);assert.deepEqual(g.activated,['west']);assert.equal(g.phase,'power');for(const p of PLANTS.slice(1)){at(g,p);interact(g);}assert.equal(g.phase,'escape');});
-test('early extraction rejected; winning payout is idempotent',()=>{const g=playing();startTournament(g);at(g,PLACES.exit);assert.equal(finish(g,true),false);const h=playing();final(h);const cash=h.profile.cash;assert.equal(interact(h),true);assert.equal(h.profile.cash,cash+20000);assert.equal(finish(h,true),false);assert.equal(h.profile.wins,1);});
-test('death retains organization and advances identity only once',()=>{const g=playing();g.profile.cash=8000;buyAsset(g,'garage');startTournament(g);const before=g.profile.cash;damage(g,1000);damage(g,1000);assert.equal(g.profile.cash,before);assert.deepEqual(g.profile.assets,['garage']);assert.equal(g.profile.generation,2);assert.equal(g.profile.deaths,1);assert.equal(finish(g,true),false);const next=createGame(g.profile);assert.equal(next.player.certificates,0);assert.equal(next.profile.generation,2);});
-test('purchase respects funds, phase, and uniqueness',()=>{const g=playing();assert.equal(buyAsset(g,'garage'),false);g.profile.cash=3500;assert.equal(buyAsset(g,'garage'),true);assert.equal(g.profile.cash,0);assert.equal(buyAsset(g,'garage'),false);g.profile.cash=99999;startTournament(g);assert.equal(buyAsset(g,'clinic'),false);assert(g.cars.every(c=>c.hp<=100));});
-test('pause stops timers, movement, damage and shots',()=>{const g=playing();startTournament(g);g.status='paused';const before=JSON.stringify(g);step(g,30,{forward:1});shoot(g,{x:0,z:0});damage(g,50);assert.equal(JSON.stringify(g),before);});
-test('long frames are capped and do not teleport player',()=>{const g=playing();startTournament(g);const t=g.time,z=g.player.z;step(g,60,{forward:1});assert(Math.abs(z-g.player.z)<=.401);assert(Math.abs(g.time-(t-.05))<1e-6);});
-test('save schema sanitizes corruption, duplicate assets and unsupported data',()=>{for(const bad of [null,undefined,42,'oops'])assert.doesNotThrow(()=>sanitizeProfile(bad));const p=sanitizeProfile({cash:NaN,wins:-8,generation:0,assets:['garage','garage','admin'],faction:'admin',history:[null,4,'valid']});assert.equal(p.cash,1200);assert.equal(p.wins,0);assert.equal(p.generation,1);assert.deepEqual(p.assets,['garage']);assert.equal(p.faction,'independent');assert.deepEqual(p.history,['valid']);});
-test('vehicle entry, driving, braking and safe exit',()=>{const g=playing();at(g,g.cars[0]);assert.equal(enterCar(g),true);const car=g.cars[0],z=car.z;for(let i=0;i<60;i++)step(g,1/60,{forward:1});assert(car.z<z);assert.equal(enterCar(g),false);car.speed=0;assert.equal(enterCar(g),true);assert.equal(blocked(g.player.x,g.player.z),false);});
-test('red phase punishes active movement but allows coasting',()=>{const g=playing();g.npcs=[];startTournament(g);g.phaseElapsed=28;step(g,.01,{});assert.equal(g.signal,'red');assert.equal(g.player.hp,100);step(g,.01,{forward:1});assert.equal(g.player.hp,75);const h=playing();h.npcs=[];at(h,h.cars[0]);enterCar(h);startTournament(h);h.cars[0].speed=12;h.phaseElapsed=28;step(h,.01,{});assert.equal(h.player.hp,100);step(h,.01,{forward:-1});assert.equal(h.player.hp,100);});
-test('NPC hit requires unobstructed line of sight',()=>{const g=playing();g.npcs=[{id:'test',role:'guard',name:'guard',x:0,z:12,hp:80,alive:true}];g.player.x=0;g.player.z=25;shoot(g,g.npcs[0]);assert.equal(g.npcs[0].hp,44);g.player.shotCooldown=0;g.npcs[0].x=40;g.npcs[0].z=25;assert.equal(lineClear(g.player,g.npcs[0]),false);shoot(g,g.npcs[0]);assert.equal(g.npcs[0].hp,44);});
-test('reload conserves ammunition and healing consumes supplies',()=>{const g=playing();g.player.ammo=3;g.player.reserve=5;reload(g);for(let i=0;i<40;i++)step(g,.05,{});assert.equal(g.player.ammo,8);assert.equal(g.player.reserve,0);g.player.hp=30;const meds=g.player.meds;heal(g);assert.equal(g.player.hp,75);assert.equal(g.player.meds,meds-1);});
-test('living ally receives half the jackpot',()=>{const g=playing();at(g,g.npcs.find(n=>n.id==='ally'));assert.equal(interact(g),true);assert(g.pact);final(g);interact(g);assert.equal(g.payout,10000);assert.equal(g.profile.cash,11200);});
-test('time limit settles one permanent death',()=>{const g=playing();startTournament(g);g.time=.001;step(g,.05,{});assert.equal(g.status,'finished');assert.equal(g.profile.deaths,1);step(g,.05,{});assert.equal(g.profile.deaths,1);});
+test('all objectives and loot are accessible outside buildings', () => {
+  const g = playing();
+  for (const p of [...Object.values(PLACES), ...PLANTS, ...g.crates, ...g.cars])
+    assert.equal(blocked(p.x, p.z), false, JSON.stringify(p));
+});
+test('99 certificates cannot qualify; 100 consumed exactly once', () => {
+  const g = playing();
+  startTournament(g);
+  at(g, PLACES.bank);
+  g.player.certificates = 99;
+  assert.equal(interact(g), false);
+  assert.equal(g.phase, 'debt');
+  g.player.certificates = 100;
+  assert.equal(interact(g), true);
+  assert.equal(g.player.certificates, 0);
+  interact(g);
+  assert.equal(g.phase, 'power');
+  assert.equal(g.player.certificates, 0);
+});
+test('a crate pays only once per pickup and resets when match starts', () => {
+  const g = playing();
+  const c = g.crates[0];
+  at(g, c);
+  interact(g);
+  const cash = g.profile.cash;
+  interact(g);
+  assert.equal(g.profile.cash, cash);
+  startTournament(g);
+  assert.equal(c.taken, false);
+  interact(g);
+  interact(g);
+  assert.equal(g.player.certificates, 25);
+});
+test('three distinct power plants are required', () => {
+  const g = playing();
+  qualify(g);
+  at(g, PLANTS[0]);
+  interact(g);
+  interact(g);
+  interact(g);
+  assert.deepEqual(g.activated, ['west']);
+  assert.equal(g.phase, 'power');
+  for (const p of PLANTS.slice(1)) {
+    at(g, p);
+    interact(g);
+  }
+  assert.equal(g.phase, 'escape');
+});
+test('early extraction rejected; winning payout is idempotent', () => {
+  const g = playing();
+  startTournament(g);
+  at(g, PLACES.exit);
+  assert.equal(finish(g, true), false);
+  const h = playing();
+  final(h);
+  const cash = h.profile.cash;
+  assert.equal(interact(h), true);
+  assert.equal(h.profile.cash, cash + 20000);
+  assert.equal(finish(h, true), false);
+  assert.equal(h.profile.wins, 1);
+});
+test('death retains organization and advances identity only once', () => {
+  const g = playing();
+  g.profile.cash = 8000;
+  buyAsset(g, 'garage');
+  startTournament(g);
+  const before = g.profile.cash;
+  damage(g, 1000);
+  damage(g, 1000);
+  assert.equal(g.profile.cash, before);
+  assert.deepEqual(g.profile.assets, ['garage']);
+  assert.equal(g.profile.generation, 2);
+  assert.equal(g.profile.deaths, 1);
+  assert.equal(finish(g, true), false);
+  const next = createGame(g.profile);
+  assert.equal(next.player.certificates, 0);
+  assert.equal(next.profile.generation, 2);
+});
+test('purchase respects funds, phase, and uniqueness', () => {
+  const g = playing();
+  assert.equal(buyAsset(g, 'garage'), false);
+  g.profile.cash = 3500;
+  assert.equal(buyAsset(g, 'garage'), true);
+  assert.equal(g.profile.cash, 0);
+  assert.equal(buyAsset(g, 'garage'), false);
+  g.profile.cash = 99999;
+  startTournament(g);
+  assert.equal(buyAsset(g, 'clinic'), false);
+  assert(g.cars.every((c) => c.hp <= 100));
+});
+test('pause stops timers, movement, damage and shots', () => {
+  const g = playing();
+  startTournament(g);
+  g.status = 'paused';
+  const before = JSON.stringify(g);
+  step(g, 30, { forward: 1 });
+  shoot(g, { x: 0, z: 0 });
+  damage(g, 50);
+  assert.equal(JSON.stringify(g), before);
+});
+test('long frames are capped and do not teleport player', () => {
+  const g = playing();
+  startTournament(g);
+  const t = g.time,
+    z = g.player.z;
+  step(g, 60, { forward: 1 });
+  assert(Math.abs(z - g.player.z) <= 0.401);
+  assert(Math.abs(g.time - (t - 0.05)) < 1e-6);
+});
+test('save schema sanitizes corruption, duplicate assets and unsupported data', () => {
+  for (const bad of [null, undefined, 42, 'oops'])
+    assert.doesNotThrow(() => sanitizeProfile(bad));
+  const p = sanitizeProfile({
+    cash: NaN,
+    wins: -8,
+    generation: 0,
+    assets: ['garage', 'garage', 'admin'],
+    faction: 'admin',
+    history: [null, 4, 'valid'],
+  });
+  assert.equal(p.cash, 1200);
+  assert.equal(p.wins, 0);
+  assert.equal(p.generation, 1);
+  assert.deepEqual(p.assets, ['garage']);
+  assert.equal(p.faction, 'independent');
+  assert.deepEqual(p.history, ['valid']);
+});
+test('vehicle entry, driving, braking and safe exit', () => {
+  const g = playing();
+  at(g, g.cars[0]);
+  assert.equal(enterCar(g), true);
+  const car = g.cars[0],
+    z = car.z;
+  for (let i = 0; i < 60; i++) step(g, 1 / 60, { forward: 1 });
+  assert(car.z < z);
+  assert.equal(enterCar(g), false);
+  car.speed = 0;
+  assert.equal(enterCar(g), true);
+  assert.equal(blocked(g.player.x, g.player.z), false);
+});
+test('red phase punishes active movement but allows coasting', () => {
+  const g = playing();
+  g.npcs = [];
+  startTournament(g);
+  g.phaseElapsed = 28;
+  step(g, 0.01, {});
+  assert.equal(g.signal, 'red');
+  assert.equal(g.player.hp, 100);
+  step(g, 0.01, { forward: 1 });
+  assert.equal(g.player.hp, 75);
+  const h = playing();
+  h.npcs = [];
+  at(h, h.cars[0]);
+  enterCar(h);
+  startTournament(h);
+  h.cars[0].speed = 12;
+  h.phaseElapsed = 28;
+  step(h, 0.01, {});
+  assert.equal(h.player.hp, 100);
+  step(h, 0.01, { forward: -1 });
+  assert.equal(h.player.hp, 100);
+});
+test('NPC hit requires unobstructed line of sight', () => {
+  const g = playing();
+  g.npcs = [
+    {
+      id: 'test',
+      role: 'guard',
+      name: 'guard',
+      x: 0,
+      z: 12,
+      hp: 80,
+      alive: true,
+    },
+  ];
+  g.player.x = 0;
+  g.player.z = 25;
+  shoot(g, g.npcs[0]);
+  assert.equal(g.npcs[0].hp, 44);
+  g.player.shotCooldown = 0;
+  g.npcs[0].x = 40;
+  g.npcs[0].z = 25;
+  assert.equal(lineClear(g.player, g.npcs[0]), false);
+  shoot(g, g.npcs[0]);
+  assert.equal(g.npcs[0].hp, 44);
+});
+test('reload conserves ammunition and healing consumes supplies', () => {
+  const g = playing();
+  g.player.ammo = 3;
+  g.player.reserve = 5;
+  reload(g);
+  for (let i = 0; i < 40; i++) step(g, 0.05, {});
+  assert.equal(g.player.ammo, 8);
+  assert.equal(g.player.reserve, 0);
+  g.player.hp = 30;
+  const meds = g.player.meds;
+  heal(g);
+  assert.equal(g.player.hp, 75);
+  assert.equal(g.player.meds, meds - 1);
+});
+test('living ally receives half the jackpot', () => {
+  const g = playing();
+  at(
+    g,
+    g.npcs.find((n) => n.id === 'ally'),
+  );
+  assert.equal(interact(g), true);
+  assert(g.pact);
+  final(g);
+  interact(g);
+  assert.equal(g.payout, 10000);
+  assert.equal(g.profile.cash, 11200);
+});
+test('time limit settles one permanent death', () => {
+  const g = playing();
+  startTournament(g);
+  g.time = 0.001;
+  step(g, 0.05, {});
+  assert.equal(g.status, 'finished');
+  assert.equal(g.profile.deaths, 1);
+  step(g, 0.05, {});
+  assert.equal(g.profile.deaths, 1);
+});
