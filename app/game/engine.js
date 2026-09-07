@@ -839,6 +839,7 @@ export class CityEngine {
       const m = this.actors.get(n.id);
       if (!m) continue;
       m.position.set(n.x, n.alive ? 0 : 0.3, n.z);
+      m.visible = !n.carId;
       m.rotation.y = n.angle;
       m.rotation.z = n.alive ? 0 : Math.PI / 2;
       this.animatePerson(

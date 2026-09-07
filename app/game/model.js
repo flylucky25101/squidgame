@@ -297,6 +297,16 @@ export function startTournament(g) {
     c.speed = 0;
   });
   g.phase = 'debt';
+  g.paidCertificates = 0;
+  g.npcs.forEach((n) => {
+    if (n.role !== 'ally') {
+      n.alive = true;
+      n.hp = n.role === 'guard' ? 110 : 80;
+      n.certificates = 0;
+      n.qualified = false;
+      n.route = null;
+    }
+  });
   g.status = 'playing';
   g.time = 210;
   g.phaseElapsed = 0;
@@ -399,6 +409,7 @@ export function interact(g) {
       return false;
     }
     g.player.certificates -= 100;
+    g.paidCertificates = (g.paidCertificates || 0) + 100;
     g.phase = 'power';
     g.phaseElapsed = 0;
     g.time = 210;
@@ -516,6 +527,12 @@ export function enterCar(g) {
     p.z = c.z + free[1];
     c.speed = 0;
     p.carId = null;
+    for (const n of g.npcs)
+      if (n.carId === c.id) {
+        n.carId = null;
+        n.x = p.x;
+        n.z = p.z;
+      }
     note(g, '차량에서 내렸습니다.');
     return true;
   }
@@ -527,6 +544,12 @@ export function enterCar(g) {
     return false;
   }
   p.carId = c.id;
+  const ally = g.npcs.find((n) => n.role === 'ally' && n.alive);
+  if (g.pact && ally && distance(ally, c) < 8) {
+    ally.carId = c.id;
+    ally.x = c.x;
+    ally.z = c.z;
+  }
   p.x = c.x;
   p.z = c.z;
   if (!c.stolen) {
@@ -622,13 +645,14 @@ export function shoot(g, target) {
   p.shotCooldown = 0.18;
   p.angle = Math.atan2(target.x - p.x, target.z - p.z);
   if (g.signal === 'red' && g.phase === 'debt') violateSignal(g);
+  if (g.status !== 'playing') return false;
   const dx = Math.sin(p.angle),
     dz = Math.cos(p.angle),
     endpoint = { x: p.x + dx * 65, z: p.z + dz * 65 };
   let victim = null,
     best = 65;
   for (const n of g.npcs) {
-    if (!n.alive) continue;
+    if (!n.alive || n.carId) continue;
     const t = (n.x - p.x) * dx + (n.z - p.z) * dz;
     const side = Math.abs((n.x - p.x) * dz - (n.z - p.z) * dx);
     if (t > 0 && t < best && side < 1.35 && lineClear(p, n)) {
@@ -678,6 +702,7 @@ function killNpc(g, n) {
     `${n.name} 탈락${n.certificates ? ' · 소지 증서가 떨어졌습니다' : ''}`,
     'warning',
   );
+  n.certificates = 0;
 }
 function violateSignal(g) {
   if (g.signalHit > 0) return;
@@ -686,12 +711,78 @@ function violateSignal(g) {
   note(g, '금지 행동 감지 · 규칙 위반 −25 HP', 'warning');
   damage(g, 25, '적색 신호의 금지 행동으로 탈락했습니다.');
 }
-function moveNpc(g, n, target, speed, dt) {
+function walkClear(a, b) {
+  const steps = Math.ceil(distance(a, b));
+  for (let i = 1; i <= steps; i++)
+    if (
+      blocked(
+        a.x + ((b.x - a.x) * i) / steps,
+        a.z + ((b.z - a.z) * i) / steps,
+        0.8,
+      )
+    )
+      return false;
+  return true;
+}
+const navNodes = [];
+const navMap = new Map();
+for (let x = -138; x <= 138; x += 6)
+  for (let z = -138; z <= 138; z += 6) {
+    if (!blocked(x, z, 0.8)) {
+      const node = { x, z, links: [] };
+      navNodes.push(node);
+      navMap.set(`${x},${z}`, node);
+    }
+  }
+for (const node of navNodes)
+  for (const [dx, dz] of [
+    [6, 0],
+    [-6, 0],
+    [0, 6],
+    [0, -6],
+  ]) {
+    const other = navMap.get(`${node.x + dx},${node.z + dz}`);
+    if (other && walkClear(node, other)) node.links.push(other);
+  }
+function routeTo(a, b) {
+  const nearest = (p) =>
+    navNodes
+      .filter((n) => distance(n, p) < 18 && walkClear(p, n))
+      .sort((a, b) => distance(a, p) - distance(b, p))[0];
+  const start = nearest(a),
+    end = nearest(b);
+  if (!start || !end) return [];
+  const queue = [start],
+    previous = new Map([[start, null]]);
+  for (let i = 0; i < queue.length && !previous.has(end); i++)
+    for (const next of queue[i].links) {
+      if (!previous.has(next)) {
+        previous.set(next, queue[i]);
+        queue.push(next);
+      }
+    }
+  if (!previous.has(end)) return [];
+  const route = [{ x: b.x, z: b.z }];
+  for (let node = end; node; node = previous.get(node))
+    route.unshift({ x: node.x, z: node.z });
+  return route;
+}
+export function moveNpc(g, n, target, speed, dt) {
+  if (!walkClear(n, target)) {
+    if (!n.route?.length || !n.routeGoal || distance(n.routeGoal, target) > 6) {
+      n.route = routeTo(n, target);
+      n.routeGoal = { x: target.x, z: target.z };
+    }
+    while (n.route.length && distance(n, n.route[0]) < 0.7) n.route.shift();
+    if (!n.route.length) return;
+    target = n.route[0];
+  } else n.route = null;
   const d = distance(n, target);
   if (d < 0.7) return;
   n.angle = Math.atan2(target.x - n.x, target.z - n.z);
-  const dx = ((target.x - n.x) / d) * speed * dt,
-    dz = ((target.z - n.z) / d) * speed * dt;
+  const travel = Math.min(d, speed * dt);
+  const dx = ((target.x - n.x) / d) * travel,
+    dz = ((target.z - n.z) / d) * travel;
   const old = { x: n.x, z: n.z };
   moveBody(n, dx, dz);
   if (distance(n, old) < speed * dt * 0.35) moveBody(n, -dz * 1.4, dx * 1.4);
@@ -770,11 +861,14 @@ export function step(g, dt, input = {}) {
     if (
       g.signal === 'red' &&
       g.phase === 'debt' &&
-      (throttle > 0 || steering !== 0 || (throttle < 0 && c.speed <= 0))
+      (throttle > 0 || steering !== 0 || (throttle < 0 && c.speed < 0))
     )
       violateSignal(g);
     if (g.status !== 'playing') return;
+    const braking =
+      g.signal === 'red' && g.phase === 'debt' && throttle < 0 && c.speed >= 0;
     c.speed += throttle * 23 * dt;
+    if (braking) c.speed = Math.max(0, c.speed);
     c.speed *= Math.pow(throttle ? 0.992 : 0.965, dt * 60);
     c.speed = clamp(c.speed, -11, input.sprint ? 44 : 32);
     c.angle -=
@@ -796,7 +890,12 @@ export function step(g, dt, input = {}) {
     p.z = c.z;
     p.angle = c.angle;
     for (const n of g.npcs)
-      if (n.alive && distance(c, n) < 2.5 && Math.abs(c.speed) > 10) {
+      if (
+        n.alive &&
+        !n.carId &&
+        distance(c, n) < 2.5 &&
+        Math.abs(c.speed) > 10
+      ) {
         n.hp -= 120;
         killNpc(g, n);
         c.speed *= 0.75;
@@ -842,18 +941,56 @@ export function step(g, dt, input = {}) {
     }
   for (const n of g.npcs) {
     if (!n.alive) continue;
+    if (n.carId) {
+      const car = g.cars.find((c) => c.id === n.carId);
+      if (g.pact && car?.hp > 0 && p.carId === n.carId) {
+        n.x = car.x;
+        n.z = car.z;
+        continue;
+      }
+      n.carId = null;
+      n.x = p.x;
+      n.z = p.z;
+    }
+    if (g.phase === 'debt' && g.signal !== 'green' && n.role !== 'guard')
+      continue;
     n.cooldown -= dt;
+    if (n.role === 'rival' && g.phase === 'debt' && !n.qualified) {
+      const target =
+        n.certificates >= 100
+          ? PLACES.bank
+          : g.crates
+              .filter((c) => !c.taken)
+              .sort((a, b) => distance(n, a) - distance(n, b))[0];
+      if (target) {
+        moveNpc(g, n, target, 4.2, dt);
+        if (distance(n, target) < 2.5) {
+          if (target === PLACES.bank) {
+            n.certificates -= 100;
+            n.qualified = true;
+            g.paidCertificates = (g.paidCertificates || 0) + 100;
+            note(
+              g,
+              `${n.name} 채무 상환 완료 · 남은 증서를 확보하세요.`,
+              'warning',
+            );
+          } else if (!target.taken) {
+            target.taken = true;
+            n.certificates += target.value;
+          }
+        }
+        continue;
+      }
+    }
     if (n.role === 'ally' && g.pact) {
-      if (distance(n, p) > (p.carId ? 5 : 3))
-        moveNpc(
-          g,
-          n,
-          p,
-          p.carId
-            ? Math.max(12, Math.abs(g.cars.find((c) => c.id === p.carId).speed))
-            : 10,
-          dt,
-        );
+      const car = g.cars.find((c) => c.id === p.carId);
+      if (car && Math.abs(car.speed) < 8 && distance(n, car) < 6) {
+        n.carId = car.id;
+        n.x = car.x;
+        n.z = car.z;
+        continue;
+      }
+      if (distance(n, p) > (p.carId ? 5 : 3)) moveNpc(g, n, p, 10, dt);
       const enemy = g.npcs.find(
         (e) =>
           e.alive &&
@@ -861,7 +998,7 @@ export function step(g, dt, input = {}) {
           distance(e, n) < 25 &&
           lineClear(n, e),
       );
-      if (enemy && n.cooldown <= 0) {
+      if (enemy && n.cooldown <= 0 && (g.phase !== 'city' || g.wanted > 0.7)) {
         enemy.hp -= 25;
         n.cooldown = 1;
         g.bullets.push({
@@ -888,7 +1025,13 @@ export function step(g, dt, input = {}) {
         n.angle = Math.atan2(p.x - n.x, p.z - n.z);
         let target = p;
         const ally = g.npcs.find((a) => a.id === 'ally' && a.alive);
-        if (g.pact && ally && distance(n, ally) < d && lineClear(n, ally))
+        if (
+          g.pact &&
+          ally &&
+          !ally.carId &&
+          distance(n, ally) < d &&
+          lineClear(n, ally)
+        )
           target = ally;
         g.bullets.push({
           x: n.x,
@@ -919,6 +1062,12 @@ export function step(g, dt, input = {}) {
     if (g.status !== 'playing') break;
   }
   g.bullets = g.bullets.filter((b) => (b.life -= dt) > 0);
+  if (g.phase === 'debt' && certificateLedger(g).available < 100)
+    finish(
+      g,
+      false,
+      '다른 참가자들이 증서를 상환했습니다. 회수 가능한 증서가 부족해 탈락했습니다.',
+    );
   g.interaction = interactionFor(g);
 }
 export function objective(g) {
@@ -935,17 +1084,25 @@ export function objective(g) {
         ? PLACES.bank
         : g.crates
             .filter((c) => !c.taken)
+            .sort((a, b) => distance(a, g.player) - distance(b, g.player))[0] ||
+          g.npcs
+            .filter((n) => n.alive && n.certificates > 0)
             .sort((a, b) => distance(a, g.player) - distance(b, g.player))[0];
     return {
       title: '01 / 연대채무',
       text:
         g.player.certificates >= 100
           ? '중앙 상환소에 증서 100을 납부하세요.'
-          : '도시의 보관함에서 증서 100을 확보하세요.',
+          : `증서 100 확보 · 경쟁자 ${g.npcs.filter((n) => n.qualified).length}명 상환. 소지자를 쓰러뜨리면 증서를 회수할 수 있습니다.`,
       target: target
         ? {
             ...target,
-            label: g.player.certificates >= 100 ? '채무 상환소' : '증서 보관함',
+            label:
+              g.player.certificates >= 100
+                ? '채무 상환소'
+                : target.role
+                  ? `${target.name} · 증서 ${target.certificates}`
+                  : '증서 보관함',
           }
         : PLACES.bank,
       progress: Math.min(100, g.player.certificates),
@@ -967,5 +1124,20 @@ export function objective(g) {
     text: '북동쪽 항만의 회수 차량에 탑승하세요.',
     target: PLACES.exit,
     progress: 100,
+  };
+}
+export function certificateLedger(g) {
+  const loose = g.crates
+    .filter((c) => !c.taken)
+    .reduce((sum, c) => sum + c.value, 0);
+  const carried = g.npcs
+    .filter((n) => n.alive)
+    .reduce((sum, n) => sum + (n.certificates || 0), 0);
+  return {
+    loose,
+    carried,
+    paid: g.paidCertificates || 0,
+    player: g.player.certificates,
+    available: loose + carried + g.player.certificates,
   };
 }

@@ -427,7 +427,7 @@ export default function LastCity() {
               HAEMUN AUTONOMOUS ZONE <b>35° 09′ N</b>
             </span>
             <span>
-              PLAYABLE PROTOTYPE <i /> 01.0
+              PLAYABLE PROTOTYPE <i /> 01.1
             </span>
           </footer>
         </section>
