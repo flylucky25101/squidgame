@@ -9,6 +9,7 @@ export default function MobileControls({
   state: any;
 }) {
   const pointer = useRef<number | null>(null);
+  const firePointer = useRef<number | null>(null);
   const [knob, setKnob] = useState({ x: 0, y: 0 });
   const reset = () => {
     pointer.current = null;
@@ -27,15 +28,17 @@ export default function MobileControls({
     engine?.setMove(v.x, v.y);
   };
   const label =
-    state.interaction?.type === 'crate'
-      ? '확보'
-      : state.interaction?.type === 'gate'
-        ? '참가'
-        : state.interaction?.type === 'bank'
-          ? '상환'
-          : state.interaction?.type === 'plant'
-            ? '복구'
-            : '상호작용';
+    state.interaction?.type === 'delivery'
+      ? '배송'
+      : state.interaction?.type === 'crate'
+        ? '확보'
+        : state.interaction?.type === 'gate'
+          ? '참가'
+          : state.interaction?.type === 'bank'
+            ? '상환'
+            : state.interaction?.type === 'plant'
+              ? '복구'
+              : '상호작용';
   return (
     <div className="touch-controls mobile-controls">
       <div
@@ -65,8 +68,33 @@ export default function MobileControls({
       <div className="mobile-actions">
         <button
           className="fire-action"
-          disabled={!!state.player.carId}
-          onClick={() => engine?.action('shoot')}
+          disabled={
+            !!state.player.carId ||
+            (state.phase === 'debt' && state.signal !== 'green')
+          }
+          onPointerDown={(e) => {
+            if (firePointer.current !== null) return;
+            firePointer.current = e.pointerId;
+            e.currentTarget.setPointerCapture(e.pointerId);
+            engine?.setFireHeld(true);
+          }}
+          onPointerUp={(e) => {
+            if (e.pointerId === firePointer.current) {
+              firePointer.current = null;
+              engine?.setFireHeld(false);
+            }
+          }}
+          onPointerCancel={() => {
+            firePointer.current = null;
+            engine?.setFireHeld(false);
+          }}
+          onLostPointerCapture={() => {
+            firePointer.current = null;
+            engine?.setFireHeld(false);
+          }}
+          onClick={(e) => {
+            if (e.detail === 0) engine?.action('shoot');
+          }}
         >
           사격
         </button>

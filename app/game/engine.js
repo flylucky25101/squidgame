@@ -14,6 +14,7 @@ import {
   heal,
   reload,
   startTournament,
+  startFirstDelivery,
   buyAsset,
   chooseFaction,
   objective,
@@ -442,6 +443,26 @@ export class CityEngine {
       );
       this.scene.add(m);
       this.actors.set(n.id, m);
+      const gauge = new THREE.Group();
+      gauge.position.y = 2.8;
+      const back = new THREE.Mesh(this.sharedBox, this.material('#1b3035'));
+      back.scale.set(1.25, 0.12, 0.04);
+      gauge.add(back);
+      const fill = new THREE.Mesh(
+        this.sharedBox,
+        this.material('#f0778c', 0.3),
+      );
+      fill.scale.set(1.2, 0.08, 0.05);
+      fill.position.z = 0.03;
+      gauge.add(fill);
+      const warning = new THREE.Mesh(
+        new THREE.OctahedronGeometry(0.16),
+        this.material('#ffbc69', 1),
+      );
+      warning.position.y = 0.35;
+      gauge.add(warning);
+      m.add(gauge);
+      m.userData.combatGauge = { gauge, fill, warning };
     });
     this.game.cars.forEach((c) => {
       const m = this.car(c.color);
@@ -670,6 +691,7 @@ export class CityEngine {
           done = localStorage.getItem('last-city-tutorial-v1') === 'done';
         } catch {}
         if (!done) this.beginPractice();
+        else startFirstDelivery(this.game);
       }
     }
     this.resume();
@@ -697,6 +719,7 @@ export class CityEngine {
     try {
       localStorage.setItem('last-city-tutorial-v1', 'done');
     } catch {}
+    startFirstDelivery(this.game);
     this.emit();
   }
   updatePractice() {
@@ -743,6 +766,7 @@ export class CityEngine {
     };
   }
   pause() {
+    this.touchFiring = false;
     if (this.game.status === 'playing') this.game.status = 'paused';
     this.keys = {};
     this.shooting = false;
@@ -758,6 +782,7 @@ export class CityEngine {
     this.emit();
   }
   restart() {
+    this.touchFiring = false;
     this.game = createGame(this.game.profile);
     this.game.status = 'playing';
     this.keys = {};
@@ -766,6 +791,7 @@ export class CityEngine {
     this.lookPointer = null;
     this.tutorial = null;
     this.rebuildActors();
+    startFirstDelivery(this.game);
     this.emit();
   }
   action(name) {
@@ -798,6 +824,9 @@ export class CityEngine {
       );
     this.emit();
     return success;
+  }
+  setFireHeld(value) {
+    this.touchFiring = !!value && this.game.status === 'playing';
   }
   buy(id) {
     const result = buyAsset(this.game, id);
@@ -892,6 +921,20 @@ export class CityEngine {
       won: g.won,
       payout: g.payout,
       result: g.result,
+      firstDelivery: g.firstDelivery ? { ...g.firstDelivery } : null,
+      defeatCause: g.defeatCause,
+      defeatTip: g.defeatTip,
+      hitFeedback: g.hitFeedback?.until > g.elapsed ? g.hitFeedback : null,
+      incomingAngle:
+        g.incoming?.until > g.elapsed
+          ? ((Math.atan2(
+              g.incoming.x - g.player.x,
+              -(g.incoming.z - g.player.z),
+            ) +
+              this.yaw) *
+              180) /
+            Math.PI
+          : null,
       kills: g.kills,
       activated: [...g.activated],
       alive: g.npcs.filter((n) => n.alive && n.role !== 'guard').length + 1,
@@ -938,9 +981,35 @@ export class CityEngine {
       right,
       sprint: !!this.keys.ShiftLeft,
       yaw: this.yaw,
-      aiming: this.shooting,
+      aiming: this.shooting || this.touchFiring,
     });
     this.updatePractice();
+    if (g.phase === 'debt' && g.signal !== 'green') this.touchFiring = false;
+    if (
+      this.touchFiring &&
+      g.status === 'playing' &&
+      p.shotCooldown <= 0 &&
+      p.reload <= 0 &&
+      !p.carId
+    )
+      this.action('shoot');
+    const cue =
+      g.phase === 'debt'
+        ? `${g.signal}:${g.signal === 'amber' ? g.signalRemaining : ''}`
+        : '';
+    if (g.status === 'playing' && cue !== this.lastSignalCue) {
+      this.lastSignalCue = cue;
+      if (cue)
+        this.tone(
+          g.signal === 'amber' ? 660 : g.signal === 'red' ? 180 : 880,
+          g.signal === 'red' ? 0.18 : 0.09,
+          0.09,
+        );
+    }
+    if (g.hitFeedback && g.hitFeedback !== this.lastHitFeedback) {
+      this.lastHitFeedback = g.hitFeedback;
+      this.tone(g.hitFeedback.killed ? 1100 : 760, 0.045, 0.055);
+    }
     if (this.shooting && shoot(g, this.aim)) this.tone(85, 0.065, 0.12);
     const visual = this.visualTime,
       menu = g.status === 'ready';
@@ -957,7 +1026,7 @@ export class CityEngine {
       this.playerMesh,
       dt,
       g.status === 'playing' ? playerSpeed : 0,
-      this.shooting && g.status === 'playing',
+      (this.shooting || this.touchFiring) && g.status === 'playing',
       p.hp > 0,
     );
     for (const n of g.npcs) {
@@ -967,6 +1036,21 @@ export class CityEngine {
       m.visible = !n.carId;
       m.rotation.y = n.angle;
       m.rotation.z = n.alive ? 0 : Math.PI / 2;
+      const { gauge, fill, warning } = m.userData.combatGauge;
+      const maxHp = n.role === 'guard' ? 110 : n.role === 'ally' ? 120 : 80;
+      gauge.visible =
+        n.alive &&
+        !n.carId &&
+        distance(p, n) < 32 &&
+        (n.hp < maxHp || !!n.aimUntil);
+      gauge.quaternion
+        .copy(m.quaternion)
+        .invert()
+        .multiply(this.camera.quaternion);
+      const fraction = clamp(n.hp / maxHp, 0, 1);
+      fill.scale.x = 1.2 * fraction;
+      fill.position.x = -0.6 * (1 - fraction);
+      warning.visible = !!n.aimUntil;
       const previous = m.userData.lastPosition;
       const speed =
         previous && dt > 0

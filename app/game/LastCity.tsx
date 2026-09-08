@@ -441,7 +441,7 @@ export default function LastCity() {
               HAEMUN AUTONOMOUS ZONE <b>35° 09′ N</b>
             </span>
             <span>
-              PLAYABLE PROTOTYPE <i /> 01.3
+              PLAYABLE PROTOTYPE <i /> 01.4
             </span>
           </footer>
         </section>
@@ -504,7 +504,7 @@ export default function LastCity() {
                       ? '이동 허용'
                       : state.signal === 'amber'
                         ? '곧 정지'
-                        : '추진 · 조향 · 발포 금지'}
+                        : '정지 · 사격 금지'}
                     <b>{state.signalRemaining}s</b>
                   </div>
                 )}
@@ -698,6 +698,34 @@ export default function LastCity() {
             engine={engineRef.current}
             state={state}
           />
+          {state.firstDelivery && !state.tutorial && (
+            <div className="first-job">
+              첫 의뢰 ·{' '}
+              {state.firstDelivery.stage === 'collect'
+                ? '물품 확보 → 차량 배송'
+                : '은신처 앞 정차 → 배송'}{' '}
+              · 보상 1,000 C
+            </div>
+          )}
+          {state.hitFeedback && (
+            <div
+              className={`hit-feedback ${state.hitFeedback.killed ? 'confirmed' : ''}`}
+              aria-label={state.hitFeedback.killed ? '적 제압' : '명중'}
+            >
+              ×
+            </div>
+          )}
+          {state.incomingAngle !== null && (
+            <div
+              className="incoming-direction"
+              style={{
+                transform: `translate(-50%,-50%) rotate(${state.incomingAngle}deg)`,
+              }}
+              aria-label="피격 방향"
+            >
+              <i />
+            </div>
+          )}
           {state.tutorial && (
             <section className="tutorial-card" aria-live="polite">
               <div>
@@ -734,6 +762,12 @@ export default function LastCity() {
                   : '참가자 탈락.'}
             </h1>
             <p>{state.result}</p>
+            {!state.won && (
+              <div className="defeat-advice">
+                <strong>{state.defeatCause}</strong>
+                <p>다음 도전: {state.defeatTip}</p>
+              </div>
+            )}
             {state.won && (
               <div className="result-payout">
                 +{money(state.payout)} <span>C</span>

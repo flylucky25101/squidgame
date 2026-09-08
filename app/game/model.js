@@ -54,6 +54,7 @@ export function sanitizeProfile(raw = {}) {
   if (!raw || typeof raw !== 'object') raw = {};
   return {
     version: 1,
+    firstDeliveryDone: raw.firstDeliveryDone === true,
     cash: safeInt(raw.cash, 1200),
     wins: safeInt(raw.wins),
     deaths: safeInt(raw.deaths),
@@ -303,6 +304,9 @@ export function startTournament(g) {
     c.speed = 0;
   });
   g.phase = 'debt';
+  g.firstDelivery = null;
+  g.hitFeedback = null;
+  g.incoming = null;
   g.paidCertificates = 0;
   g.npcs.forEach((n) => {
     if (n.role !== 'ally') {
@@ -310,6 +314,7 @@ export function startTournament(g) {
       n.hp = n.role === 'guard' ? 110 : 80;
       n.certificates = 0;
       n.qualified = false;
+      n.aimUntil = null;
       n.route = null;
     }
   });
@@ -353,6 +358,17 @@ export function interactionFor(g) {
           ? '밀수품 확보'
           : `증서 +${nearest.value} / 탄약 확보`,
     };
+  if (
+    distance(p, PLACES.home) < 6 &&
+    g.phase === 'city' &&
+    g.firstDelivery?.stage === 'return'
+  )
+    return {
+      type: 'delivery',
+      text: p.carId
+        ? '정차 후 배송 완료 · +1,000 C'
+        : '차량에 탑승해 은신처로 배송하세요',
+    };
   if (distance(p, PLACES.home) < 5 && g.phase === 'city')
     return { type: 'home', text: '은신처에서 회복' };
   if (distance(p, PLACES.gate) < 5 && g.phase === 'city')
@@ -385,6 +401,13 @@ export function interact(g) {
     g.collected.push(c.id);
     g.player.reserve = Math.min(240, g.player.reserve + 18);
     if (g.phase === 'city') {
+      if (
+        g.firstDelivery?.stage === 'collect' &&
+        c.id === g.firstDelivery.crateId
+      ) {
+        g.firstDelivery.stage = 'return';
+        note(g, '물품 확보. 차량으로 은신처에 돌아오면 +1,000 C.', 'reward');
+      }
       const amount = Math.floor(
         c.cash * (g.profile.assets.includes('network') ? 1.5 : 1),
       );
@@ -394,6 +417,26 @@ export function interact(g) {
       g.player.certificates += c.value;
       note(g, `증서 +${c.value} · 탄약 +18`, 'reward');
     }
+    return true;
+  }
+  if (a.type === 'delivery') {
+    const car = g.cars.find((c) => c.id === g.player.carId && c.hp > 0);
+    if (!car || Math.abs(car.speed) > 2) {
+      note(g, '차량에 탄 상태로 은신처 앞에서 정차하세요.', 'warning');
+      return false;
+    }
+    if (g.profile.firstDeliveryDone || g.firstDelivery?.stage !== 'return')
+      return false;
+    g.profile.firstDeliveryDone = true;
+    g.profile.cash += 1000;
+    g.firstDelivery = null;
+    g.player.hp = 100;
+    g.wanted = 0;
+    note(
+      g,
+      '첫 배송 성공! +1,000 C · 이제 등록소에서 대회에 도전하세요.',
+      'reward',
+    );
     return true;
   }
   if (a.type === 'home') {
@@ -585,13 +628,20 @@ export function reload(g) {
   }
   return false;
 }
-export function damage(g, amount, reason = '집행국에게 쓰러졌습니다.') {
+export function damage(
+  g,
+  amount,
+  reason = '집행국에게 쓰러졌습니다.',
+  source = null,
+  code = 'combat',
+) {
   if (g.status !== 'playing') return;
   g.player.hp = Math.max(0, g.player.hp - amount);
   g.lastDamage = 0.35;
-  if (g.player.hp <= 0) finish(g, false, reason);
+  if (source) g.incoming = { x: source.x, z: source.z, until: g.elapsed + 1 };
+  if (g.player.hp <= 0) finish(g, false, reason, code);
 }
-export function finish(g, won, reason = '') {
+export function finish(g, won, reason = '', code = 'combat') {
   if (
     g.settlement ||
     g.status !== 'playing' ||
@@ -601,6 +651,10 @@ export function finish(g, won, reason = '') {
   g.settlement = true;
   g.won = won;
   g.status = 'finished';
+  if (!won) {
+    g.defeatCause = reason || '교전 중 생명력이 소진됐습니다.';
+    g.defeatTip = defeatTip(code, g.phase);
+  }
   const ally = g.npcs.find((n) => n.id === 'ally');
   if (won) {
     const shared = g.pact && ally?.alive;
@@ -677,6 +731,7 @@ export function shoot(g, target) {
       note(g, '윤서: “결국 당신도 똑같군요.” · 동맹 파기', 'warning');
     }
     if (victim.hp <= 0) killNpc(g, victim);
+    g.hitFeedback = { until: g.elapsed + 0.3, killed: !victim.alive };
   }
   g.bullets.push({
     x: p.x,
@@ -715,7 +770,7 @@ function violateSignal(g) {
   g.signalHit = 2;
   g.wanted = 3;
   note(g, '금지 행동 감지 · 규칙 위반 −25 HP', 'warning');
-  damage(g, 25, '적색 신호의 금지 행동으로 탈락했습니다.');
+  damage(g, 25, '적색 신호의 금지 행동으로 탈락했습니다.', null, 'rule');
 }
 function walkClear(a, b) {
   const steps = Math.ceil(distance(a, b));
@@ -815,7 +870,7 @@ export function step(g, dt, input = {}) {
   if (g.phase !== 'city') {
     g.time = Math.max(0, g.time - dt);
     if (g.time <= 0) {
-      finish(g, false, '제한 시간 안에 목표를 완료하지 못했습니다.');
+      finish(g, false, '제한 시간 안에 목표를 완료하지 못했습니다.', 'time');
       return;
     }
   }
@@ -921,7 +976,7 @@ export function step(g, dt, input = {}) {
         p.x += safe[0];
         p.z += safe[1];
       }
-      damage(g, 20, '차량 파손으로 탈락했습니다.');
+      damage(g, 20, '차량 파손으로 탈락했습니다.', null, 'car');
       note(g, '차량 파손 · 하차 후 다른 차량을 확보하세요.', 'warning');
     }
   } else {
@@ -1024,9 +1079,14 @@ export function step(g, dt, input = {}) {
         ? g.wanted > 0.7 || g.phase !== 'city'
         : n.hostile && g.phase !== 'city';
     const d = distance(n, p);
+    if (!(aggro && d < 30 && n.cooldown <= 0 && lineClear(n, p)))
+      n.aimUntil = null;
     if (aggro && d < 48) {
       if (d > 15) moveNpc(g, n, p, n.role === 'guard' ? 5 : 6, dt);
       if (d < 30 && n.cooldown <= 0 && lineClear(n, p)) {
+        if (n.aimUntil == null) n.aimUntil = g.elapsed + 0.65;
+        if (g.elapsed < n.aimUntil) continue;
+        n.aimUntil = null;
         n.cooldown = 2.1 + (n.role === 'rival' ? 0.9 : 0);
         n.angle = Math.atan2(p.x - n.x, p.z - n.z);
         let target = p;
@@ -1053,7 +1113,16 @@ export function step(g, dt, input = {}) {
         } else if (p.carId) {
           const c = g.cars.find((c) => c.id === p.carId);
           c.hp -= 6;
-        } else damage(g, n.role === 'guard' ? 7 : 5);
+          g.incoming = { x: n.x, z: n.z, until: g.elapsed + 1 };
+        } else
+          damage(
+            g,
+            n.role === 'guard' ? 7 : 5,
+            n.role === 'guard'
+              ? '집행국의 사격으로 쓰러졌습니다.'
+              : '경쟁 참가자의 사격으로 쓰러졌습니다.',
+            n,
+          );
       }
     } else if (n.role !== 'ally') {
       if (!n.target || distance(n, n.target) < 3) {
@@ -1073,10 +1142,30 @@ export function step(g, dt, input = {}) {
       g,
       false,
       '다른 참가자들이 증서를 상환했습니다. 회수 가능한 증서가 부족해 탈락했습니다.',
+      'certificates',
     );
   g.interaction = interactionFor(g);
 }
 export function objective(g) {
+  if (g.phase === 'city' && g.firstDelivery) {
+    const collecting = g.firstDelivery.stage === 'collect';
+    const target = collecting
+      ? g.crates.find((c) => c.id === g.firstDelivery.crateId)
+      : PLACES.home;
+    return {
+      title: '첫 의뢰 · 은신처 배송',
+      text: collecting
+        ? '표시된 보관함을 확보하세요. 배송 보상 1,000 C.'
+        : '차량으로 은신처에 돌아와 정차한 뒤 배송을 누르세요.',
+      target: target
+        ? {
+            ...target,
+            label: collecting ? '배송 물품' : '차량으로 은신처 배송',
+          }
+        : PLACES.home,
+      progress: collecting ? 0 : 50,
+    };
+  }
   if (g.phase === 'city')
     return {
       title: '당신의 도시, 당신의 규칙',
@@ -1131,6 +1220,36 @@ export function objective(g) {
     target: PLACES.exit,
     progress: 100,
   };
+}
+export function startFirstDelivery(g) {
+  if (g.phase !== 'city' || g.profile.firstDeliveryDone || g.firstDelivery)
+    return false;
+  const crate = g.crates
+    .filter((c) => !c.taken)
+    .sort((a, b) => distance(a, g.player) - distance(b, g.player))[0];
+  if (!crate) return false;
+  g.firstDelivery = { stage: 'collect', crateId: crate.id };
+  note(
+    g,
+    '첫 의뢰: 보관함을 확보하고 차량으로 은신처에 배송하세요. 보상 1,000 C.',
+    'broadcast',
+  );
+  return true;
+}
+export function defeatTip(code, phase) {
+  if (code === 'rule')
+    return '황색 신호가 뜨면 미리 멈추세요. 적색 중에는 이동·조향·사격을 하지 마세요. 차량 제동은 가능합니다.';
+  if (code === 'car')
+    return '차량 내구도가 낮으면 속도를 줄여 하차하고 다른 차량으로 갈아타세요.';
+  if (code === 'certificates')
+    return '보관함을 먼저 확보하세요. 남은 보관함이 없다면 증서 소지자를 제압해 회수할 수 있습니다.';
+  if (code === 'time')
+    return phase === 'debt'
+      ? '증서가 100개 모이면 바로 상환소로 이동하세요.'
+      : phase === 'power'
+        ? '지도를 열어 가까운 변전소부터 복구하고 차량으로 이동하세요.'
+        : '북동쪽 회수 지점까지 차량으로 이동한 뒤 탑승 버튼 대신 목표 상호작용을 누르세요.';
+  return '적 머리 위 경고가 뜨면 건물 뒤로 피하세요. 체력이 줄었을 때 치료하고, 여러 적과의 정면 교전을 피하세요.';
 }
 export function certificateLedger(g) {
   const loose = g.crates
