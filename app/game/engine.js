@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { createCharacter, animateCharacter } from './character.js';
+import { obstructionFraction, clearCameraPosition } from './presentation.js';
 import {
   BUILDINGS,
   PLACES,
@@ -349,59 +351,7 @@ export class CityEngine {
     this.flushBoxes();
   }
   person(color, guard = false, player = false) {
-    const group = new THREE.Group();
-    const torso = this.box(0.72, 0.86, 0.43, 0, 1.24, 0, color, 0, group);
-    this.box(0.1, 0.7, 0.46, 0, 1.24, 0, '#d7e3d7', 0, group);
-    const head = new THREE.Mesh(
-      new THREE.SphereGeometry(0.28, 10, 8),
-      this.material(guard ? '#202d35' : '#d5b99b'),
-    );
-    head.position.y = 1.96;
-    group.add(head);
-    head.castShadow = true;
-    if (guard) {
-      const hood = new THREE.Mesh(
-        new THREE.SphereGeometry(0.35, 10, 8),
-        this.material(color),
-      );
-      hood.position.set(0, 1.95, -0.08);
-      group.add(hood);
-      this.box(0.13, 0.05, 0.03, 0, 2, 0.285, '#e6e5d8', 0.3, group);
-    } else this.box(0.53, 0.15, 0.48, 0, 2.16, -0.04, '#263435', 0, group);
-    const legs = [
-      this.box(0.25, 0.8, 0.28, -0.21, 0.4, 0, color, 0, group),
-      this.box(0.25, 0.8, 0.28, 0.21, 0.4, 0, color, 0, group),
-    ];
-    const arms = [
-      this.box(0.21, 0.7, 0.26, -0.49, 1.24, 0, color, 0, group),
-      this.box(0.21, 0.7, 0.26, 0.49, 1.24, 0, color, 0, group),
-    ];
-    this.box(0.2, 0.18, 0.7, 0.48, 1.02, 0.34, '#1e2c31', 0, group);
-    group.userData = { legs, arms, torso };
-    if (player) {
-      const ring = new THREE.Mesh(
-        new THREE.RingGeometry(0.78, 0.89, 32),
-        new THREE.MeshBasicMaterial({
-          color: '#9ff6cf',
-          transparent: true,
-          opacity: 0.9,
-          side: THREE.DoubleSide,
-          depthTest: false,
-        }),
-      );
-      ring.rotation.x = -Math.PI / 2;
-      ring.position.y = 0.12;
-      ring.renderOrder = 100;
-      group.add(ring);
-      const marker = new THREE.Mesh(
-        new THREE.OctahedronGeometry(0.19),
-        new THREE.MeshBasicMaterial({ color: '#c2ffe2', depthTest: false }),
-      );
-      marker.position.y = 2.9;
-      marker.renderOrder = 100;
-      group.add(marker);
-    }
-    return group;
+    return createCharacter(color, guard, player, (c) => this.material(c));
   }
   car(color) {
     const g = new THREE.Group();
@@ -430,9 +380,19 @@ export class CityEngine {
     return g;
   }
   rebuildActors() {
-    for (const m of this.actors.values()) this.scene.remove(m);
-    for (const m of this.carMeshes.values()) this.scene.remove(m);
-    for (const m of this.crateMeshes.values()) this.scene.remove(m);
+    const retainedMaterials = new Set(this.materials.values());
+    for (const collection of [this.actors, this.carMeshes, this.crateMeshes])
+      for (const m of collection.values()) {
+        this.scene.remove(m);
+        m.traverse((part) => {
+          if (part.geometry && part.geometry !== this.sharedBox)
+            part.geometry.dispose();
+          if (part.material && !retainedMaterials.has(part.material)) {
+            part.material.map?.dispose();
+            part.material.dispose();
+          }
+        });
+      }
     this.actors.clear();
     this.carMeshes.clear();
     this.crateMeshes.clear();
@@ -830,10 +790,18 @@ export class CityEngine {
     this.playerMesh.visible = !p.carId;
     this.playerMesh.position.set(p.x, 0, p.z);
     this.playerMesh.rotation.y = p.angle;
-    this.animatePerson(
+    const lastPlayer = this.playerMesh.userData.lastPosition;
+    const playerSpeed =
+      lastPlayer && dt > 0
+        ? Math.min(15, Math.hypot(p.x - lastPlayer.x, p.z - lastPlayer.z) / dt)
+        : 0;
+    this.playerMesh.userData.lastPosition = { x: p.x, z: p.z };
+    animateCharacter(
       this.playerMesh,
-      visual,
-      !!(forward || right) && g.status === 'playing',
+      dt,
+      g.status === 'playing' ? playerSpeed : 0,
+      this.shooting && g.status === 'playing',
+      p.hp > 0,
     );
     for (const n of g.npcs) {
       const m = this.actors.get(n.id);
@@ -842,10 +810,18 @@ export class CityEngine {
       m.visible = !n.carId;
       m.rotation.y = n.angle;
       m.rotation.z = n.alive ? 0 : Math.PI / 2;
-      this.animatePerson(
+      const previous = m.userData.lastPosition;
+      const speed =
+        previous && dt > 0
+          ? Math.min(15, Math.hypot(n.x - previous.x, n.z - previous.z) / dt)
+          : 0;
+      m.userData.lastPosition = { x: n.x, z: n.z };
+      animateCharacter(
         m,
-        visual + Number(n.id.split('-')[1] || 0),
-        n.alive && g.status === 'playing' && n.role !== 'ally',
+        dt,
+        g.status === 'playing' && n.alive ? speed : 0,
+        n.alive && n.cooldown > 1.8,
+        n.alive,
       );
     }
     for (const c of g.cars) {
@@ -921,7 +897,27 @@ export class CityEngine {
       cameraPosition.x += Math.sin(visual * 100) * g.lastDamage * 0.6;
       cameraPosition.z += Math.cos(visual * 88) * g.lastDamage * 0.6;
     }
+    if (!menu) {
+      // Prefer a higher view before shortening the boom in tight alleys.
+      const elevated = cameraPosition.clone();
+      for (
+        let i = 0;
+        i < 8 && obstructionFraction(cameraTarget, elevated, BUILDINGS) < 1;
+        i++
+      )
+        elevated.y += 5;
+      cameraPosition.copy(elevated);
+    }
     this.camera.position.lerp(cameraPosition, 1 - Math.exp(-dt * 5));
+    if (!menu) {
+      // Validate the interpolated position too: smoothing must never cross walls.
+      const safe = clearCameraPosition(
+        cameraTarget,
+        this.camera.position,
+        BUILDINGS,
+      );
+      this.camera.position.set(safe.x, safe.y, safe.z);
+    }
     this.camera.lookAt(cameraTarget);
     this.sun.position.set(p.x - 70, 100, p.z - 65);
     this.sun.target.position.set(p.x, 0, p.z);
@@ -943,15 +939,6 @@ export class CityEngine {
       this.emit();
     }
   };
-  animatePerson(mesh, t, moving) {
-    const swing = moving ? Math.sin(t * 11) * 0.45 : 0;
-    mesh.userData.legs?.forEach(
-      (m, i) => (m.rotation.x = swing * (i ? 1 : -1)),
-    );
-    mesh.userData.arms?.forEach(
-      (m, i) => (m.rotation.x = -swing * (i ? 1 : -1)),
-    );
-  }
   destroy() {
     this.running = false;
     cancelAnimationFrame(this.raf);
