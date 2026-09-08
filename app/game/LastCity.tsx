@@ -42,6 +42,7 @@ import {
 import { Progress } from '@/components/ui/progress';
 import { Switch } from '@/components/ui/switch';
 import { CityEngine } from './engine';
+import MobileControls from './MobileControls';
 import { registerGameTools } from './webmcp';
 import {
   ASSETS,
@@ -268,7 +269,7 @@ export default function LastCity() {
 
   return (
     <main
-      className={`last-city ${started ? 'in-game' : 'in-menu'} ${state?.signal === 'red' && state?.phase === 'debt' ? 'red-signal' : ''}`}
+      className={`last-city ${started ? 'in-game' : 'in-menu'} ${state?.tutorial ? 'practicing' : ''} ${state?.signal === 'red' && state?.phase === 'debt' ? 'red-signal' : ''}`}
     >
       <div className="world" ref={worldRef} />
       <div className="vignette" aria-hidden="true" />
@@ -293,6 +294,16 @@ export default function LastCity() {
           <span>SOLO · NPC</span>
         </div>
         <div className="header-actions">
+          {started && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => open('map')}
+              aria-label="전체 지도"
+            >
+              <Map />
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="icon"
@@ -372,12 +383,15 @@ export default function LastCity() {
                 대회 바로 참가 <ArrowRight />
               </Button>
             </div>
+            <p className="entry-hint">
+              처음 입장하면 안전한 조작 연습부터 시작합니다.
+            </p>
             <div className="title-meta">
               <span>3D 생존 액션</span>
               <b>·</b>
               <span>1인 플레이</span>
               <b>·</b>
-              <span>키보드 + 마우스</span>
+              <span>터치 · 키보드 지원</span>
             </div>
           </div>
           <aside className="entry-brief">
@@ -427,7 +441,7 @@ export default function LastCity() {
               HAEMUN AUTONOMOUS ZONE <b>35° 09′ N</b>
             </span>
             <span>
-              PLAYABLE PROTOTYPE <i /> 01.2
+              PLAYABLE PROTOTYPE <i /> 01.3
             </span>
           </footer>
         </section>
@@ -435,7 +449,7 @@ export default function LastCity() {
 
       {state && started && !finished && (
         <>
-          <section className="mission-panel">
+          <section className="mission-panel" onClick={() => open('help')}>
             <div className="tiny-label">
               <span className="live-dot" />{' '}
               {state.phase === 'city' ? 'OPEN WORLD' : 'CURRENT OBJECTIVE'}
@@ -679,45 +693,27 @@ export default function LastCity() {
               <kbd>Esc</kbd> 메뉴
             </Button>
           </footer>
-          <div className="touch-controls">
-            <div className="touch-dpad">
-              {[
-                ['KeyW', ArrowUp, 'up'],
-                ['KeyA', ArrowLeft, 'left'],
-                ['KeyS', ArrowDown, 'down'],
-                ['KeyD', ArrowRight, 'right'],
-              ].map(([key, Icon, position]: any) => (
+          <MobileControls
+            key={state.status}
+            engine={engineRef.current}
+            state={state}
+          />
+          {state.tutorial && (
+            <section className="tutorial-card" aria-live="polite">
+              <div>
+                <strong>
+                  {state.tutorial.step + 1}/6 · {state.tutorial.title}
+                </strong>
                 <button
-                  key={key}
-                  className={position}
-                  aria-label={key + ' 이동'}
-                  onPointerDown={(e) => {
-                    e.currentTarget.setPointerCapture(e.pointerId);
-                    press(key, true);
-                  }}
-                  onPointerUp={() => press(key, false)}
-                  onPointerCancel={() => press(key, false)}
+                  onClick={() => engineRef.current?.endPractice()}
+                  aria-label="조작 연습 끝내기"
                 >
-                  <Icon size={23} />
+                  {state.tutorial.step === 5 ? '완료' : '건너뛰기'}
                 </button>
-              ))}
-            </div>
-            <div className="touch-actions">
-              <button
-                onClick={() => action('shoot')}
-                aria-label="가장 가까운 적에게 사격"
-              >
-                <Crosshair />
-              </button>
-              <button onClick={() => action('interact')}>E</button>
-              <button onClick={() => action('car')}>
-                <Car />
-              </button>
-              <button onClick={() => action('heal')}>
-                <Heart />
-              </button>
-            </div>
-          </div>
+              </div>
+              <p>{state.tutorial.text}</p>
+            </section>
+          )}
         </>
       )}
 
@@ -810,6 +806,17 @@ export default function LastCity() {
               <Button className="primary-action" onClick={close}>
                 <Play size={17} /> 계속하기
               </Button>
+              {state?.phase === 'city' && (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setModal('');
+                    engineRef.current?.beginPractice();
+                  }}
+                >
+                  처음부터 조작 연습
+                </Button>
+              )}
               <Button variant="outline" onClick={() => setModal('map')}>
                 <Map /> 전체 지도
               </Button>

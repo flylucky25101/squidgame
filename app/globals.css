@@ -2060,3 +2060,326 @@ body {
     transition-duration: 0.001ms !important;
   }
 }
+/* Compact play surface: the center belongs to the city, not the HUD. */
+.world canvas {
+  touch-action: none;
+}
+.entry-hint {
+  color: #b8d4c8;
+  font-size: 13px;
+  margin-top: 12px;
+}
+.tutorial-card {
+  position: absolute;
+  top: 155px;
+  left: 28px;
+  width: min(340px, calc(100% - 32px));
+  padding: 12px 14px;
+  background: #102b32ee;
+  border: 1px solid #9be6c855;
+  border-radius: 12px;
+  z-index: 30;
+  color: #eaf5ee;
+  pointer-events: auto;
+}
+.tutorial-card > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+.tutorial-card strong {
+  font-size: 14px;
+}
+.tutorial-card button {
+  color: #9be6c8;
+  font-size: 12px;
+  padding: 8px 0 8px 8px;
+}
+.tutorial-card p {
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 4px 0 0;
+}
+.practicing .mission-panel,
+.practicing .radio-feed {
+  display: none;
+}
+.joystick {
+  width: 128px;
+  height: 128px;
+  border: 1px solid #c6edd15c;
+  border-radius: 50%;
+  background: radial-gradient(circle, #284b5355, #102b3288);
+  position: relative;
+  display: grid;
+  place-items: center;
+  touch-action: none;
+  pointer-events: auto;
+  user-select: none;
+}
+.joystick-knob {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: #b5e9d4a6;
+  border: 2px solid #d9fff1b3;
+  pointer-events: none;
+  box-shadow: 0 4px 18px #0005;
+}
+.joystick small {
+  position: absolute;
+  bottom: 8px;
+  font-size: 11px;
+  color: #d0e9de;
+  pointer-events: none;
+}
+.mobile-actions {
+  display: grid;
+  grid-template-columns: repeat(3, 52px);
+  gap: 8px;
+  pointer-events: auto;
+  align-content: end;
+}
+.mobile-actions button {
+  width: 52px !important;
+  height: 52px !important;
+  border-radius: 50% !important;
+  font-size: 12px;
+  background: #16353be6 !important;
+}
+.mobile-actions button:disabled {
+  opacity: 0.35;
+}
+.mobile-actions .fire-action {
+  background: #804451db !important;
+  grid-row: span 2;
+  height: 112px !important;
+  border-radius: 30px !important;
+}
+@media (max-width: 600px), (pointer: coarse) {
+  .in-game .game-header {
+    top: max(8px, env(safe-area-inset-top));
+    left: 12px;
+    right: 12px;
+    height: 40px;
+  }
+  .in-game .wordmark,
+  .in-game .session-tag {
+    display: none;
+  }
+  .in-game .header-actions {
+    margin-left: auto;
+  }
+  .in-game .header-actions button {
+    min-width: 40px;
+    min-height: 40px;
+  }
+  .mission-panel {
+    top: 58px;
+    left: 12px;
+    width: min(230px, calc(100% - 105px));
+  }
+  .mission-panel h2,
+  .mission-panel p,
+  .mission-panel .tiny-label,
+  .mission-panel .mission-progress {
+    display: none;
+  }
+  .mission-panel .objective-distance {
+    margin: 0;
+    padding: 7px 9px;
+    font-size: 12px;
+    background: #102b32cc;
+    border-radius: 8px;
+  }
+  .status-panel {
+    top: 60px;
+    right: 12px;
+    gap: 0;
+  }
+  .status-panel .cash,
+  .status-panel .wanted {
+    display: none;
+  }
+  .timer > span {
+    display: none;
+  }
+  .timer strong {
+    font-size: 23px;
+  }
+  .round-status {
+    top: 98px;
+    left: 12px;
+    transform: none;
+    gap: 0;
+  }
+  .round-steps,
+  .free-roam-label {
+    display: none;
+  }
+  .signal-pill {
+    font-size: 12px;
+    padding: 6px 10px;
+  }
+  .map-panel,
+  .participant,
+  .stamina-row,
+  .weapon-label,
+  .weapon-detail,
+  .ally-status,
+  .drive-tip,
+  .controls-footer {
+    display: none;
+  }
+  .player-status {
+    top: 18px;
+    bottom: auto;
+    left: 12px;
+    width: 105px;
+  }
+  .health-row {
+    gap: 5px;
+  }
+  .health-row b {
+    font-size: 13px;
+  }
+  .weapon-panel {
+    right: 14px;
+    bottom: calc(165px + env(safe-area-inset-bottom));
+    width: 160px;
+  }
+  .ammo-count {
+    margin: 0;
+    font-size: 24px;
+  }
+  .ammo-count small {
+    font-size: 12px;
+  }
+  .supplies {
+    font-size: 11px;
+    margin-top: 2px;
+    gap: 4px;
+  }
+  .supplies kbd {
+    display: none;
+  }
+  .touch-controls.mobile-controls {
+    display: flex;
+    position: absolute;
+    bottom: calc(18px + env(safe-area-inset-bottom));
+    left: max(16px, env(safe-area-inset-left));
+    right: max(16px, env(safe-area-inset-right));
+    justify-content: space-between;
+    align-items: end;
+    pointer-events: none;
+  }
+  .interaction-prompt {
+    bottom: calc(165px + env(safe-area-inset-bottom));
+    left: 14px;
+    transform: none;
+    max-width: calc(100% - 195px);
+    min-height: 40px;
+    padding: 6px 10px !important;
+    font-size: 12px !important;
+  }
+  .interaction-prompt kbd,
+  .interaction-prompt svg {
+    display: none;
+  }
+  .radio-feed {
+    top: 135px;
+    bottom: auto;
+    left: 12px;
+    transform: none;
+    width: min(330px, calc(100% - 24px));
+  }
+  .radio-message {
+    font-size: 12px;
+    line-height: 1.4;
+    padding: 8px 10px;
+    background: #102b32d9;
+  }
+  .radio-message:nth-child(n + 2) {
+    display: none;
+  }
+  .tutorial-card {
+    top: 62px;
+    left: 12px;
+    width: min(340px, calc(100% - 24px));
+    padding: 9px 12px;
+  }
+  .tutorial-card p {
+    font-size: 12px;
+  }
+  .tutorial-card strong {
+    font-size: 13px;
+  }
+  .practicing .round-status {
+    display: none;
+  }
+}
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 540px) {
+  .joystick {
+    width: 112px;
+    height: 112px;
+  }
+  .mobile-actions {
+    grid-template-columns: repeat(3, 48px);
+    gap: 6px;
+  }
+  .mobile-actions button {
+    width: 48px !important;
+    height: 48px !important;
+  }
+  .mobile-actions .fire-action {
+    height: 102px !important;
+  }
+  .weapon-panel,
+  .interaction-prompt {
+    bottom: 140px;
+  }
+  .tutorial-card {
+    top: 58px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 310px;
+  }
+  .radio-feed {
+    top: 100px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 300px;
+  }
+}
+@media (max-width: 600px), (pointer: coarse) {
+  .objective-distance > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+  }
+  .radio-message > span {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
+@media (max-width: 360px) {
+  .joystick {
+    width: 112px;
+    height: 112px;
+  }
+  .mobile-actions {
+    grid-template-columns: repeat(3, 48px);
+    gap: 6px;
+  }
+  .mobile-actions button {
+    width: 48px !important;
+    height: 48px !important;
+  }
+  .mobile-actions .fire-action {
+    height: 102px !important;
+  }
+}

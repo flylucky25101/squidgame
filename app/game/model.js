@@ -286,7 +286,13 @@ export function createGame(profile = {}, seed = Date.now()) {
   return game;
 }
 export function note(g, text, kind = 'info') {
-  g.notes.unshift({ id: ++g.noteId, text, kind, at: g.elapsed });
+  g.notes.unshift({
+    id: ++g.noteId,
+    text,
+    kind,
+    at: g.elapsed,
+    expiresAt: Date.now() + (kind === 'broadcast' ? 6500 : 3500),
+  });
   g.notes = g.notes.slice(0, 5);
 }
 export function startTournament(g) {

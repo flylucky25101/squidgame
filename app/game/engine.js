@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { visibleNotes, LESSONS } from './mobile.js';
 import { createCharacter, animateCharacter } from './character.js';
 import { obstructionFraction, clearCameraPosition } from './presentation.js';
 import {
@@ -17,6 +18,7 @@ import {
   chooseFaction,
   objective,
   distance,
+  lineClear,
   clamp,
   seeded,
   note,
@@ -30,6 +32,11 @@ export class CityEngine {
     this.onPause = onPause;
     this.game = createGame(profile);
     this.keys = {};
+    this.moveInput = { x: 0, y: 0 };
+    this.cameraLift = 0;
+    this.lookPointer = null;
+    this.tutorial = null;
+    this.touchDevice = window.matchMedia('(pointer: coarse)').matches;
     this.mouse = new THREE.Vector2(0, 0);
     this.aim = { x: 0, z: -20 };
     this.yaw = 0;
@@ -85,6 +92,7 @@ export class CityEngine {
     this.staticBatches = new Map();
     this.materials = new Map();
     this.sharedBox = new THREE.BoxGeometry(1, 1, 1);
+    this.citySigns = [];
     this.buildCity();
     this.actors = new Map();
     this.carMeshes = new Map();
@@ -92,6 +100,7 @@ export class CityEngine {
     this.markers = [];
     this.playerMesh = this.person('#84cfb1', false, true);
     this.scene.add(this.playerMesh);
+    this.addOccludedSilhouette(this.playerMesh);
     this.rebuildActors();
     this.buildMarkers();
     this.tracerGroup = new THREE.Group();
@@ -292,6 +301,7 @@ export class CityEngine {
         sign.position.set(b.x, b.h + 3, b.z);
         sign.scale.multiplyScalar(0.9);
         this.scene.add(sign);
+        this.citySigns.push(sign);
       }
       if (i % 3 === 0) this.box(0.3, 4, 0.3, b.x, b.h + 3, b.z, '#93a0a0');
     });
@@ -347,11 +357,36 @@ export class CityEngine {
     title.position.set(0, 14, -9.5);
     title.scale.set(15, 3.75, 1);
     billboard.add(title);
+    this.citySigns.push(title);
     this.scene.add(billboard);
     this.flushBoxes();
   }
   person(color, guard = false, player = false) {
     return createCharacter(color, guard, player, (c) => this.material(c));
+  }
+  addOccludedSilhouette(root) {
+    root.userData.occludedMeshes = [];
+    const material = new THREE.MeshBasicMaterial({
+      color: '#b5ffe1',
+      transparent: true,
+      opacity: 0.55,
+      depthWrite: false,
+      depthTest: true,
+      depthFunc: THREE.GreaterDepth,
+      toneMapped: false,
+    });
+    const meshes = [];
+    root.traverse((part) => {
+      if (part.isMesh && part.material.isMeshStandardMaterial)
+        meshes.push(part);
+    });
+    for (const part of meshes) {
+      const ghost = new THREE.Mesh(part.geometry, material);
+      ghost.renderOrder = 90;
+      ghost.userData.silhouette = true;
+      root.userData.occludedMeshes.push(ghost);
+      part.add(ghost);
+    }
   }
   car(color) {
     const g = new THREE.Group();
@@ -547,16 +582,45 @@ export class CityEngine {
     listen(c, 'contextmenu', (e) => e.preventDefault());
     listen(c, 'pointerdown', (e) => {
       if (this.game.status !== 'playing') return;
-      if (e.pointerType === 'touch') return;
+      if (e.pointerType === 'touch') {
+        if (this.lookPointer !== null) return;
+        this.lookPointer = e.pointerId;
+        this.lookX = e.clientX;
+        this.lookY = e.clientY;
+        c.setPointerCapture(e.pointerId);
+        return;
+      }
       if (e.button === 2) this.dragging = true;
       if (e.button === 0) this.shooting = true;
       c.focus();
     });
-    listen(window, 'pointerup', () => {
+    const releaseLook = (e) => {
+      if (e.pointerId === this.lookPointer) this.lookPointer = null;
+    };
+    listen(window, 'pointercancel', releaseLook);
+    listen(c, 'lostpointercapture', releaseLook);
+    listen(window, 'pointerup', (e) => {
+      releaseLook(e);
       this.shooting = false;
       this.dragging = false;
     });
     listen(window, 'pointermove', (e) => {
+      if (e.pointerType === 'touch') {
+        if (
+          e.pointerId === this.lookPointer &&
+          this.game.status === 'playing'
+        ) {
+          this.yaw -= (e.clientX - this.lookX) * 0.008;
+          this.cameraLift = clamp(
+            this.cameraLift + (e.clientY - this.lookY) * 0.06,
+            -8,
+            14,
+          );
+          this.lookX = e.clientX;
+          this.lookY = e.clientY;
+        }
+        return;
+      }
       const rect = c.getBoundingClientRect();
       this.mouse.set(
         ((e.clientX - rect.left) / rect.width) * 2 - 1,
@@ -600,16 +664,91 @@ export class CityEngine {
     if (this.game.status === 'ready') {
       this.game.status = 'playing';
       if (tournament) startTournament(this.game);
+      else {
+        let done = false;
+        try {
+          done = localStorage.getItem('last-city-tutorial-v1') === 'done';
+        } catch {}
+        if (!done) this.beginPractice();
+      }
     }
     this.resume();
     this.initAudio();
     this.emit();
+  }
+  setMove(x, y) {
+    this.moveInput = { x: clamp(x, -1, 1), y: clamp(y, -1, 1) };
+  }
+  beginPractice() {
+    if (this.game.phase !== 'city') return;
+    this.tutorial = {
+      step: 0,
+      origin: { x: this.game.player.x, z: this.game.player.z },
+      yaw: this.yaw,
+      collected: this.game.collected.length,
+    };
+    this.game.wanted = 0;
+    this.game.player.hp = 100;
+    this.game.status = 'playing';
+    this.emit();
+  }
+  endPractice() {
+    this.tutorial = null;
+    try {
+      localStorage.setItem('last-city-tutorial-v1', 'done');
+    } catch {}
+    this.emit();
+  }
+  updatePractice() {
+    const t = this.tutorial,
+      g = this.game;
+    if (!t) return;
+    if (g.phase !== 'city') {
+      this.endPractice();
+      return;
+    }
+    const done = [
+      distance(g.player, t.origin) > 8,
+      Math.abs(this.yaw - t.yaw) > 0.4,
+      g.collected.length > t.collected,
+      !!g.player.carId,
+      !g.player.carId,
+    ];
+    if (t.step < 5 && done[t.step]) {
+      t.step++;
+      if (t.step === 1) t.yaw = this.yaw;
+      if (t.step === 2) t.collected = g.collected.length;
+    }
+  }
+  practiceObjective() {
+    const t = this.tutorial,
+      g = this.game;
+    if (!t) return null;
+    const targets =
+      t.step === 2
+        ? g.crates.filter((c) => !c.taken)
+        : t.step === 3
+          ? g.cars.filter((c) => c.hp > 0)
+          : [];
+    const target = targets.sort(
+      (a, b) => distance(a, g.player) - distance(b, g.player),
+    )[0];
+    return {
+      title: LESSONS[t.step][0],
+      text: LESSONS[t.step][1],
+      progress: t.step * 20,
+      target: target
+        ? { ...target, label: t.step === 2 ? '연습 보관함' : '연습 차량' }
+        : null,
+    };
   }
   pause() {
     if (this.game.status === 'playing') this.game.status = 'paused';
     this.keys = {};
     this.shooting = false;
     this.dragging = false;
+    this.moveInput = { x: 0, y: 0 };
+    this.lookPointer = null;
     this.emit();
   }
   resume() {
@@ -623,6 +762,9 @@ export class CityEngine {
     this.game.status = 'playing';
     this.keys = {};
     this.yaw = 0;
+    this.moveInput = { x: 0, y: 0 };
+    this.lookPointer = null;
+    this.tutorial = null;
     this.rebuildActors();
     this.emit();
   }
@@ -635,7 +777,12 @@ export class CityEngine {
     if (name === 'shoot') {
       const enemy = this.game.npcs
         .filter(
-          (n) => n.alive && n.hostile && distance(n, this.game.player) < 45,
+          (n) =>
+            n.alive &&
+            !n.carId &&
+            n.hostile &&
+            distance(n, this.game.player) < 45 &&
+            lineClear(this.game.player, n),
         )
         .sort(
           (a, b) =>
@@ -718,7 +865,7 @@ export class CityEngine {
   }
   emit() {
     const g = this.game,
-      o = objective(g);
+      o = this.practiceObjective() || objective(g);
     this.onUpdate({
       phase: g.phase,
       status: g.status,
@@ -736,7 +883,10 @@ export class CityEngine {
       blackout: g.blackout,
       pact: g.pact,
       allyAlive: g.npcs.some((n) => n.id === 'ally' && n.alive),
-      notes: [...g.notes],
+      notes: visibleNotes(g.notes),
+      tutorial: this.tutorial
+        ? { ...this.tutorial, ...this.practiceObjective() }
+        : null,
       objective: o,
       interaction: g.interaction,
       won: g.won,
@@ -773,10 +923,16 @@ export class CityEngine {
       this.aim = { x: aimPoint.x, z: aimPoint.z };
     const forward =
         (this.keys.KeyW || this.keys.ArrowUp ? 1 : 0) -
-        (this.keys.KeyS || this.keys.ArrowDown ? 1 : 0),
+        (this.keys.KeyS || this.keys.ArrowDown ? 1 : 0) +
+        this.moveInput.y,
       right =
         (this.keys.KeyD || this.keys.ArrowRight ? 1 : 0) -
-        (this.keys.KeyA || this.keys.ArrowLeft ? 1 : 0);
+        (this.keys.KeyA || this.keys.ArrowLeft ? 1 : 0) +
+        this.moveInput.x;
+    if (this.tutorial && g.phase === 'city') {
+      g.wanted = 0;
+      g.player.hp = 100;
+    }
     step(g, dt, {
       forward,
       right,
@@ -784,6 +940,7 @@ export class CityEngine {
       yaw: this.yaw,
       aiming: this.shooting,
     });
+    this.updatePractice();
     if (this.shooting && shoot(g, this.aim)) this.tone(85, 0.065, 0.12);
     const visual = this.visualTime,
       menu = g.status === 'ready';
@@ -826,6 +983,10 @@ export class CityEngine {
     }
     for (const c of g.cars) {
       const m = this.carMeshes.get(c.id);
+      if (c.id === p.carId && !m.userData.occludedMeshes)
+        this.addOccludedSilhouette(m);
+      for (const ghost of m.userData.occludedMeshes || [])
+        ghost.visible = c.id === p.carId;
       m.position.set(c.x, 0, c.z);
       m.rotation.y = c.angle;
       if (c.hp <= 0) m.rotation.z = 0.06;
@@ -838,6 +999,8 @@ export class CityEngine {
       m.userData.gem.position.y = 1.6 + Math.sin(visual * 2) * 0.12;
     }
     for (const marker of this.markers) {
+      marker.mesh.userData.label.visible =
+        !this.touchDevice && distance(p, marker.mesh.position) < 18;
       marker.mesh.userData.gem.rotation.y = visual * 0.7;
       marker.mesh.visible = marker.plant
         ? (g.phase === 'power' || g.phase === 'city') &&
@@ -850,7 +1013,7 @@ export class CityEngine {
               ? g.phase === 'debt'
               : g.phase === 'escape';
     }
-    const o = objective(g);
+    const o = this.practiceObjective() || objective(g);
     if (o.target) {
       this.targetMarker.position.set(o.target.x, 0, o.target.z);
       this.targetMarker.visible = g.status !== 'ready';
@@ -858,7 +1021,9 @@ export class CityEngine {
       this.targetMarker.userData.gem.position.y =
         5 + Math.sin(visual * 3) * 0.2;
     }
-    this.crosshair.visible = g.status === 'playing' && !p.carId;
+    if (!o.target) this.targetMarker.visible = false;
+    this.crosshair.visible =
+      g.status === 'playing' && !p.carId && !this.touchDevice;
     this.crosshair.position.set(this.aim.x, 0.15, this.aim.z);
     // Tracer meshes are disposed each frame; shared city resources remain owned until teardown.
     for (const line of [...this.tracerGroup.children]) {
@@ -885,7 +1050,7 @@ export class CityEngine {
       zoom = this.zoom + (p.carId ? 9 : 0);
     let cameraPosition = new THREE.Vector3(
       p.x + Math.sin(this.yaw) * zoom,
-      p.carId ? 29 : 24,
+      (p.carId ? 29 : 24) + this.cameraLift,
       p.z + Math.cos(this.yaw) * zoom,
     );
     if (menu) {
@@ -919,6 +1084,15 @@ export class CityEngine {
       this.camera.position.set(safe.x, safe.y, safe.z);
     }
     this.camera.lookAt(cameraTarget);
+    this.camera.updateMatrixWorld();
+    const projectedPlayer = cameraTarget.clone().project(this.camera);
+    for (const sign of this.citySigns) {
+      const projected = sign.position.clone().project(this.camera);
+      sign.visible =
+        menu ||
+        Math.abs(projected.x - projectedPlayer.x) > 0.32 ||
+        Math.abs(projected.y - projectedPlayer.y) > 0.22;
+    }
     this.sun.position.set(p.x - 70, 100, p.z - 65);
     this.sun.target.position.set(p.x, 0, p.z);
     this.sun.target.updateMatrixWorld();
