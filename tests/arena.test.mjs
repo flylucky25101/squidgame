@@ -1,0 +1,13 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {newRun,tick,act,signal} from '../app/arena/rules.js';
+const playing=(round)=>Object.assign(newRun(round),{status:'playing'});
+test('red light eliminates movement but allows standing still',()=>{const s=playing(0);s.elapsed=6;tick(s,.02);assert.equal(s.status,'playing');tick(s,.02,{z:-1});assert.equal(s.status,'lost');});
+test('green light crossing wins and terminal state cannot change',()=>{const s=playing(0);s.z=-21.99;tick(s,.05,{z:-1});assert.equal(s.status,'won');const t=s.time;tick(s,.05);assert.equal(s.time,t);});
+test('warning precedes red light',()=>{const s=playing(0);s.elapsed=4.4;assert.equal(signal(s),'warning');});
+test('dalgona needs all ordered cuts and three errors fail',()=>{const s=playing(1);for(let i=0;i<24;i++)act(s,i);assert.equal(s.status,'won');const f=playing(1);for(let i=0;i<3;i++)act(f,-1);assert.equal(f.status,'lost');});
+test('rope rewards timing and prevents repeated instant taps',()=>{const s=playing(2);act(s,0);const f=s.force;act(s,0);assert.equal(s.force,f);for(let i=1;i<7;i++){s.elapsed=i*Math.PI/3;act(s,0);}assert.equal(s.status,'won');});
+test('marble total reaches victory and wrong guesses can eliminate',()=>{for(const guess of [0,1]){const s=playing(3);s.random=()=>0;for(let i=0;i<5;i++){s.elapsed=i;act(s,guess);}assert.equal(s.status,guess?'won':'lost');}});
+test('bridge reveal locks choices then checks all eight panes',()=>{const s=playing(4);act(s,1-s.bridge[0]);assert.equal(s.status,'playing');s.elapsed=4;for(const v of s.bridge)act(s,v);assert.equal(s.status,'won');const f=playing(4);f.elapsed=4;act(f,1-f.bridge[0]);assert.equal(f.status,'lost');});
+test('final round checks boundary and goal',()=>{const s=playing(5);s.x=11;tick(s,.01);assert.equal(s.status,'lost');const w=playing(5);w.z=-22;tick(w,.01);assert.equal(w.status,'won');});
+test('all rounds fail on timeout',()=>{for(let r=0;r<6;r++){const s=playing(r);s.time=.001;tick(s,.05);assert.equal(s.status,'lost');}});

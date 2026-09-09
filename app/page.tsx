@@ -1,6 +1,8 @@
 'use client';
 import dynamic from 'next/dynamic';
-const LastCity = dynamic(() => import('./game/LastCity'), {
+import {useEffect, useState} from 'react';
+const City = dynamic(() => import('./game/LastCity'), {ssr:false});
+const LastCity = dynamic(() => import('./arena/Arena'), {
   ssr: false,
   loading: () => (
     <main className="boot">
@@ -10,5 +12,7 @@ const LastCity = dynamic(() => import('./game/LastCity'), {
   ),
 });
 export default function Home() {
-  return <LastCity />;
+  const [city,setCity]=useState(false);
+  useEffect(()=>{setCity(new URLSearchParams(window.location.search).get('mode')==='city');},[]);
+  return city ? <City/> : <LastCity />;
 }

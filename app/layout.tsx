@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
 import './globals.css';
 export const metadata: Metadata = {
-  title: 'LAST CITY — 목숨의 가격',
+  title: 'THE ISLAND — 6 ROUND SURVIVAL',
   description:
-    '해문시를 무대로 펼쳐지는 3D 범죄 생존 액션. 차량을 탈취하고, 동맹을 맺고, 마지막 탈출에 도전하세요.',
+    '고립된 3D 경기장의 여섯 가지 생존 게임. PC와 모바일에서 도전하고, LAST CITY 도시 모드도 즐기세요.',
   icons: { icon: '/favicon.svg' },
 };
 export default function RootLayout({

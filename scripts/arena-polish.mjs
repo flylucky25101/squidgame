@@ -1,0 +1,4 @@
+import fs from 'node:fs';
+let p='app/arena/arena.css';fs.writeFileSync(p,fs.readFileSync(p,'utf8').replace('padding-top: seventy; ',''));
+p='app/arena/Arena.jsx';let s=fs.readFileSync(p,'utf8').replace('href="/city"','href="./?mode=city"').replace('href="/" className="arena-brand"','href="./" className="arena-brand"');fs.writeFileSync(p,s);
+p='app/arena/scene.js';s=fs.readFileSync(p,'utf8').replace("n.visible=s.round===0;","n.visible=s.round===0;if(s.status==='ready')n.position.z=12+Math.floor(i/5)*3;").replace("const target=new T.Vector3(s.x*0.5, s.round===4?15:10,s.z+16);", "const reveal=s.round===4&&(s.elapsed<4||s.status==='ready');const target=reveal?new T.Vector3(0,45,35):new T.Vector3(s.x*0.5,s.round===4?15:10,s.z+16);").replace("camera.lookAt(s.x*0.4,1,s.z-8);","camera.lookAt(s.x*0.4,1,reveal?0:s.z-8);");fs.writeFileSync(p,s);
