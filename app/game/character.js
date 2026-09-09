@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-export function createCharacter(color, guard, player, material) {
+export function createCharacter(color, guard, player, material, armed = true) {
   const root = new THREE.Group(),
     body = new THREE.Group();
   root.add(body);
@@ -76,6 +76,7 @@ export function createCharacter(color, guard, player, material) {
     capsule(0.085, 0.035, 0, -0.33, 0, skin, elbow);
   }
   const gun = box(0.14, 0.16, 0.38, 0, -0.34, 0.15, '#1b2a31', elbows[1]);
+  gun.visible = armed;
   box(0.11, 0.08, 0.22, 0, 0.075, 0.025, '#64736f', gun);
   root.userData = { body, legs, knees, arms, elbows, phase: 0, stride: 0 };
   if (player) {
