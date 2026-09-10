@@ -482,6 +482,25 @@
   }
 }
 
+.music-setting {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin: 14px 0;
+  font-size: 14px;
+}
+.music-setting input {
+  flex: 1;
+  min-width: 100px;
+  height: 32px;
+  accent-color: #e65d89;
+}
+.music-setting small {
+  flex-basis: 100%;
+  font-size: 12px;
+  opacity: 0.7;
+}
 /* Game v2: controls remain outside the main action and honor phone safe areas. */
 .round-4 .arena-world {
   top: 180px;

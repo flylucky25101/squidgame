@@ -342,6 +342,7 @@ export default function Arena() {
   const [s, setS] = useState(() => ({ ...run.current })),
     [paused, setPaused] = useState(false),
     [muted, setMuted] = useState(false),
+    [musicVolume, setMusicVolume] = useState(0.65),
     [overview, setOverview] = useState(false),
     [error, setError] = useState(''),
     [reset, setReset] = useState(0);
@@ -353,6 +354,8 @@ export default function Arena() {
   const pauseTo = (value) => {
     options.current.paused = value;
     audio.current?.stopChant();
+    if (value) audio.current?.pauseMusic();
+    else audio.current?.unlock();
     setPaused(value);
     clearInput();
   };
@@ -421,6 +424,7 @@ export default function Arena() {
               lastEvent = r.eventId;
             }
           } else lastChant = '';
+          audio.current.updateMusic(r, options.current.paused);
           hud += dt;
           if (hud > 0.045) {
             setS({ ...r });
@@ -811,6 +815,25 @@ export default function Arena() {
                     ? ROUNDS[s.round][1]
                     : s.message)}
             </p>
+            {(paused || s.status === 'ready') && (
+              <label className="music-setting">
+                <span>배경음악 {Math.round(musicVolume * 100)}%</span>
+                <input
+                  aria-label="배경음악 음량"
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={musicVolume}
+                  onChange={(e) => {
+                    const value = Number(e.target.value);
+                    setMusicVolume(value);
+                    audio.current?.musicVolume(value);
+                  }}
+                />
+                <small>0%로 내리면 효과음만 들립니다.</small>
+              </label>
+            )}
             {s.status === 'ready' && !paused && s.round === 1 && (
               <div className="shape-choice">
                 {SHAPES.map((name, i) => (
@@ -880,6 +903,7 @@ export default function Arena() {
                   className="arena-primary"
                   onClick={() => {
                     clearInput();
+                    audio.current?.unlock();
                     if (run.current.round !== 0) audio.current?.play('ready');
                     beginRound(run.current);
                     setS({ ...run.current });
@@ -921,7 +945,7 @@ export default function Arena() {
                     6경기 연속 도전
                   </button>
                   <br />
-                  시즌 1·2 기반 싱글플레이 각색 / v3
+                  시즌 1·2 기반 싱글플레이 각색 / v4
                 </p>
               </>
             )}

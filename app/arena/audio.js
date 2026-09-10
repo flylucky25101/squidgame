@@ -1,10 +1,14 @@
+import { createMusic } from './music.js';
+
 export function createAudio() {
+  let music = null;
   let ctx = null,
     muted = false;
   const clips = [],
     voices = new Set();
   function context() {
     ctx ??= new (window.AudioContext || window.webkitAudioContext)();
+    music ??= createMusic(ctx);
     return ctx;
   }
   async function preload() {
@@ -126,15 +130,38 @@ export function createAudio() {
     }
   }
   return {
+    unlock() {
+      try {
+        context().resume();
+      } catch {}
+    },
+    updateMusic(s, paused) {
+      try {
+        music?.update(s, paused);
+      } catch {}
+    },
+    pauseMusic() {
+      music?.pause();
+    },
+    musicVolume(value) {
+      music?.volume(value);
+    },
     play,
     syllable,
     stopChant,
     mute(value) {
       muted = value;
+      music?.mute(value);
+      if (!value) {
+        try {
+          context().resume();
+        } catch {}
+      }
       if (value) stopChant();
     },
     dispose() {
       stopChant();
+      music?.dispose();
       ctx?.close();
     },
   };
