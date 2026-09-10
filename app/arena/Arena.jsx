@@ -6,8 +6,9 @@ import {
   newRun,
   tick,
   act,
-  signal,
-  chooseShape,
+  CHANT,
+  beginRound,
+  throwStone,
   shapePoints,
   traceAt,
   joystickVector,
@@ -15,6 +16,150 @@ import {
 import { createArena } from './scene.js';
 import { createAudio } from './audio.js';
 import './arena.css';
+
+function StoneSwipe({ s, onThrow }) {
+  const gesture = useRef(null),
+    [line, setLine] = useState(null);
+  const locked = s.stone.active || s.retrieveTime > 0 || s.stoneHit;
+  return (
+    <section className="stone-dock">
+      <div
+        className="stone-swipe"
+        role="group"
+        aria-label="아래에서 위로 드래그해 비석 던지기"
+        onPointerDown={(e) => {
+          if (locked || gesture.current) return;
+          e.preventDefault();
+          const r = e.currentTarget.getBoundingClientRect();
+          gesture.current = {
+            id: e.pointerId,
+            x: e.clientX,
+            y: e.clientY,
+            width: r.width,
+            height: r.height,
+            t: performance.now(),
+          };
+          e.currentTarget.setPointerCapture(e.pointerId);
+          setLine({
+            x1: e.clientX - r.left,
+            y1: e.clientY - r.top,
+            x2: e.clientX - r.left,
+            y2: e.clientY - r.top,
+          });
+        }}
+        onPointerMove={(e) => {
+          if (gesture.current?.id !== e.pointerId) return;
+          const r = e.currentTarget.getBoundingClientRect();
+          setLine((l) =>
+            l ? { ...l, x2: e.clientX - r.left, y2: e.clientY - r.top } : null,
+          );
+        }}
+        onPointerUp={(e) => {
+          const g = gesture.current;
+          if (g?.id !== e.pointerId) return;
+          gesture.current = null;
+          setLine(null);
+          onThrow(
+            (e.clientX - g.x) / g.width,
+            (e.clientY - g.y) / g.height,
+            (performance.now() - g.t) / 1000,
+          );
+        }}
+        onPointerCancel={() => {
+          gesture.current = null;
+          setLine(null);
+        }}
+        onLostPointerCapture={() => {
+          gesture.current = null;
+          setLine(null);
+        }}
+      >
+        <span className="swipe-arrow">↑</span>
+        <strong>
+          {s.stoneHit
+            ? '명중!'
+            : s.retrieveTime > 0
+              ? '돌을 회수하는 중'
+              : s.stone.active
+                ? '날아가는 중'
+                : '아래에서 위로 스와이프'}
+        </strong>
+        <small>방향 · 길이 · 속도로 조준</small>
+        {line && (
+          <svg className="swipe-trail">
+            <line
+              x1={line.x1}
+              y1={line.y1}
+              x2={line.x2}
+              y2={line.y2}
+              stroke="#e7c989"
+              strokeWidth="5"
+              strokeLinecap="round"
+            />
+          </svg>
+        )}
+      </div>
+      <p>{s.message || '너무 세게 던지면 비석 위로 넘어갑니다.'}</p>
+    </section>
+  );
+}
+
+function SugarBox({ s }) {
+  const lift = Math.min(1, Math.max(0, (s.boxTime - 0.3) / 1.2)),
+    fade = Math.min(1, Math.max(0, (s.boxTime - 1) / 0.8));
+  return (
+    <section className="sugar-unboxing">
+      <span>당신에게 주어진 모양은…</span>
+      <svg viewBox="0 0 320 340" aria-label="달고나 상자 공개">
+        <circle cx="160" cy="190" r="120" fill="#798786" />
+        <circle cx="160" cy="190" r="111" fill="#d7a557" />
+        <path
+          d={s.trace
+            .map(
+              (p, i) =>
+                `${i ? 'L' : 'M'}${(p[0] - 150) * 0.72 + 160} ${(p[1] - 150) * 0.72 + 190}`,
+            )
+            .join(' ')}
+          stroke="#805325"
+          fill="none"
+          strokeWidth="3"
+          opacity={fade}
+        />
+        <g
+          transform={`translate(${lift * 50} ${-lift * 170}) rotate(${lift * 24} 160 190)`}
+          opacity={1 - lift * 0.9}
+        >
+          <circle
+            cx="160"
+            cy="190"
+            r="121"
+            fill="#8f9f9e"
+            stroke="#dce5dd"
+            strokeWidth="6"
+          />
+          <circle
+            cx="160"
+            cy="190"
+            r="105"
+            fill="none"
+            stroke="#526f70"
+            strokeWidth="2"
+          />
+          <text
+            x="160"
+            y="200"
+            textAnchor="middle"
+            fill="#dce5dd"
+            fontSize="30"
+          >
+            ○ △ □
+          </text>
+        </g>
+      </svg>
+      <h2 style={{ opacity: fade }}>{SHAPES[s.shape]}</h2>
+    </section>
+  );
+}
 
 function Joystick({ onMove, reset }) {
   const pointer = useRef(null),
@@ -193,11 +338,11 @@ export default function Arena() {
   const keys = useRef({}),
     move = useRef({ x: 0, z: 0 }),
     audio = useRef(null),
-    options = useRef({ paused: false, overview: true });
+    options = useRef({ paused: false, overview: false });
   const [s, setS] = useState(() => ({ ...run.current })),
     [paused, setPaused] = useState(false),
     [muted, setMuted] = useState(false),
-    [overview, setOverview] = useState(true),
+    [overview, setOverview] = useState(false),
     [error, setError] = useState(''),
     [reset, setReset] = useState(0);
   const clearInput = () => {
@@ -207,6 +352,7 @@ export default function Arena() {
   };
   const pauseTo = (value) => {
     options.current.paused = value;
+    audio.current?.stopChant();
     setPaused(value);
     clearInput();
   };
@@ -228,7 +374,7 @@ export default function Arena() {
     let lastRun = null,
       lastEvent = 0,
       lastShot = 0,
-      lastLight = '',
+      lastChant = '',
       hud = 0;
     try {
       dispose = createArena(
@@ -240,7 +386,8 @@ export default function Arena() {
             lastRun = r;
             lastEvent = 0;
             lastShot = 0;
-            lastLight = '';
+            lastChant = '';
+            audio.current.stopChant();
           }
           if (!options.current.paused) {
             const k = keys.current;
@@ -254,14 +401,17 @@ export default function Arena() {
                 (k.s || k.arrowdown ? 1 : 0) -
                 (k.w || k.arrowup ? 1 : 0),
             });
+            const chantKey = `${r.cycle}:${r.syllable}`;
             if (
               r.round === 0 &&
               r.status === 'playing' &&
-              r.light !== lastLight
+              r.light === 'green' &&
+              chantKey !== lastChant
             ) {
-              audio.current.play(r.light);
-              lastLight = r.light;
+              audio.current.syllable(r.syllable, r.chant[r.syllable]);
+              lastChant = chantKey;
             }
+            if (r.status === 'dying') audio.current.stopChant();
             if (r.shotId !== lastShot) {
               audio.current.play('shot');
               lastShot = r.shotId;
@@ -270,7 +420,7 @@ export default function Arena() {
               audio.current.play(r.eventKind);
               lastEvent = r.eventId;
             }
-          }
+          } else lastChant = '';
           hud += dt;
           if (hud > 0.045) {
             setS({ ...r });
@@ -297,8 +447,9 @@ export default function Arena() {
       keys.current[k] = true;
       if (e.code === 'Space' && !e.repeat) {
         const r = run.current;
-        if (r.round === 0 || r.round === 5) act(r, 'push');
-        else if (r.round === 2 || r.round === 3) act(r, 0);
+        if (r.round === 5) act(r, 'push');
+        else if (r.round === 2) act(r, 0);
+        else if (r.round === 3) keys.current.throwStart = performance.now();
       }
       if (run.current.round === 4 && !e.repeat) {
         if (k === 'q') act(run.current, 0);
@@ -307,10 +458,24 @@ export default function Arena() {
     };
     const up = (e) => {
       keys.current[e.key.toLowerCase()] = false;
+      if (
+        e.code === 'Space' &&
+        keys.current.throwStart &&
+        !options.current.paused
+      ) {
+        const held = (performance.now() - keys.current.throwStart) / 1000;
+        throwStone(
+          run.current,
+          0,
+          -Math.min(0.65, held * 0.6),
+          Math.max(0.1, held),
+        );
+        delete keys.current.throwStart;
+      }
     };
     const blur = () => {
       clearInput();
-      if (run.current.status === 'playing' || run.current.status === 'dying')
+      if (['playing', 'dying', 'opening'].includes(run.current.status))
         pauseTo(true);
     };
     const visibility = () => {
@@ -398,20 +563,23 @@ export default function Arena() {
       {isPlaying && (
         <>
           {s.round === 0 && (
-            <div className={'arena-signal ' + signal(s)}>
-              {s.light === 'green'
-                ? '무궁화꽃이 피었습니다'
-                : s.light === 'warning'
-                  ? '영희가 돌아봅니다'
-                  : '움직이지 마세요'}
-              <small>
-                {s.light === 'warning'
-                  ? `${s.lightRemaining.toFixed(1)}초 뒤 움직임 감지`
-                  : s.light === 'green'
-                    ? '빈 공간을 찾아 이동하세요'
-                    : '조이스틱에서 손을 떼세요'}
-              </small>
-            </div>
+            <>
+              <div className="doll-chant" aria-label="영희 구호">
+                {CHANT.map((letter, i) => (
+                  <span
+                    key={i}
+                    className={
+                      s.light === 'green' && i === s.syllable ? 'spoken' : ''
+                    }
+                  >
+                    {letter}
+                  </span>
+                ))}
+              </div>
+              <div className="doll-window">
+                <span>영희</span>
+              </div>
+            </>
           )}
           {s.round === 1 && (
             <Sugar
@@ -440,36 +608,12 @@ export default function Arena() {
             </section>
           )}
           {s.round === 3 && (
-            <>
-              <div className="jegi-count">
-                <strong>{s.kicks}</strong>
-                <span>/ 5 연속</span>
-              </div>
-              <section className="arena-action-dock jegi-dock">
-                <div className="jegi-height">
-                  <span>발 높이</span>
-                  <i />
-                  <b
-                    style={{ left: `${Math.min(96, (s.jegiY / 2.5) * 100)}%` }}
-                  />
-                </div>
-                <button
-                  className="arena-primary"
-                  disabled={s.jegiReset > 0}
-                  onClick={() => action(0)}
-                >
-                  {!s.jegiActive
-                    ? '제기 띄우기'
-                    : s.jegiV < 0 && s.jegiY <= 1.15
-                      ? '지금 차세요!'
-                      : '제기 차기'}{' '}
-                  <small>SPACE</small>
-                </button>
-                <p>
-                  {s.message || '내려오는 제기가 발 높이에 왔을 때 차세요.'}
-                </p>
-              </section>
-            </>
+            <StoneSwipe
+              s={s}
+              onThrow={(dx, dy, t) => {
+                if (!options.current.paused) throwStone(run.current, dx, dy, t);
+              }}
+            />
           )}
           {s.round === 4 && (
             <>
@@ -541,17 +685,51 @@ export default function Arena() {
             </>
           )}
           {s.round === 5 && (
-            <div className="squid-objective">
-              <strong>{stageText}</strong>
-              <span>
-                {s.squidStage === 'neck'
-                  ? '외발 이동 · 목의 금색 통로를 건너세요'
-                  : s.squidStage === 'entrance'
-                    ? '두 발 이동 · 오른쪽 바깥으로 돌아가세요'
-                    : '밀치기 준비 표시가 뜨면 옆으로 피하세요'}
-              </span>
-              <progress value={s.stamina} max="1" />
-            </div>
+            <>
+              <div className="squid-objective">
+                <strong>{stageText}</strong>
+                <span>
+                  {s.squidStage === 'neck'
+                    ? '외발 이동 · 목의 금색 통로를 건너세요'
+                    : s.squidStage === 'entrance'
+                      ? '두 발 이동 · 오른쪽 바깥으로 돌아가세요'
+                      : '밀치기 준비 표시가 뜨면 옆으로 피하세요'}
+                </span>
+                <progress value={s.stamina} max="1" />
+              </div>
+              <svg
+                className="squid-minimap"
+                viewBox="-18 -28 36 60"
+                aria-label="오징어 경기장 전체 지도"
+              >
+                <path
+                  d="M-10 24V0L0 -20 10 0V24H3M-10 24H-3"
+                  fill="none"
+                  stroke="#ffe9a5"
+                  strokeWidth=".7"
+                />
+                <circle
+                  cx="0"
+                  cy="-21"
+                  r="3"
+                  fill="none"
+                  stroke="#ffe9a5"
+                  strokeWidth=".7"
+                />
+                <path
+                  d="M-12 -2H12M-12 2H12"
+                  stroke="#d39b68"
+                  strokeWidth=".4"
+                />
+                <circle cx={s.x} cy={s.z} r="1.4" fill="#ffff94" />
+                <circle
+                  cx={s.opponentX}
+                  cy={s.opponentZ}
+                  r="1.2"
+                  fill="#ff6486"
+                />
+              </svg>
+            </>
           )}
           {(s.round === 0 || s.round === 5) && (
             <>
@@ -563,16 +741,16 @@ export default function Arena() {
                   스틱을 놓으면 정지
                 </span>
               </div>
-              <button
-                className="arena-push"
-                disabled={
-                  s.round === 0 ? s.light !== 'green' : s.stamina < 0.45
-                }
-                onClick={() => action('push')}
-              >
-                {s.round === 0 ? '길 확보' : '밀치기'}
-                <small>SPACE</small>
-              </button>
+              {s.round === 5 && (
+                <button
+                  className="arena-push"
+                  disabled={s.stamina < 0.45}
+                  onClick={() => action('push')}
+                >
+                  밀치기
+                  <small>SPACE</small>
+                </button>
+              )}
             </>
           )}
           {s.message && s.messageUntil > s.elapsed && s.round === 0 && (
@@ -582,7 +760,8 @@ export default function Arena() {
           )}
         </>
       )}
-      {dying && !paused && (
+      {s.status === 'opening' && !paused && <SugarBox s={s} />}
+      {dying && !paused && (s.round !== 0 || s.deathTime > 3.1) && (
         <div className="elimination-caption">
           <span>움직임 감지 / ELIMINATION</span>
           <strong>
@@ -594,7 +773,7 @@ export default function Arena() {
           </strong>
         </div>
       )}
-      {((!['playing', 'dying'].includes(s.status) &&
+      {((!['playing', 'dying', 'opening'].includes(s.status) &&
         !(s.round === 2 && s.status === 'won' && s.resultTime < 2.5)) ||
         paused ||
         error) && (
@@ -635,14 +814,7 @@ export default function Arena() {
             {s.status === 'ready' && !paused && s.round === 1 && (
               <div className="shape-choice">
                 {SHAPES.map((name, i) => (
-                  <button
-                    key={name}
-                    className={s.shape === i ? 'selected' : ''}
-                    onClick={() => {
-                      chooseShape(run.current, i);
-                      setS({ ...run.current });
-                    }}
-                  >
+                  <div key={name} className="shape-preview">
                     <svg viewBox="0 0 300 300" aria-hidden="true">
                       <path
                         d={shapePoints(i)
@@ -657,7 +829,7 @@ export default function Arena() {
                     <small>
                       {['쉬움', '보통', '어려움', '매우 어려움'][i]}
                     </small>
-                  </button>
+                  </div>
                 ))}
               </div>
             )}
@@ -708,12 +880,12 @@ export default function Arena() {
                   className="arena-primary"
                   onClick={() => {
                     clearInput();
-                    audio.current?.play('green');
-                    run.current.status = 'playing';
+                    if (run.current.round !== 0) audio.current?.play('ready');
+                    beginRound(run.current);
                     setS({ ...run.current });
                   }}
                 >
-                  경기 시작 →
+                  {s.round === 1 ? '랜덤 상자 열기 →' : '경기 시작 →'}
                 </button>
               ) : s.status === 'won' && s.round < 5 && !s.practice ? (
                 <button
@@ -749,7 +921,7 @@ export default function Arena() {
                     6경기 연속 도전
                   </button>
                   <br />
-                  시즌 1·2 기반 싱글플레이 각색 / v2
+                  시즌 1·2 기반 싱글플레이 각색 / v3
                 </p>
               </>
             )}
@@ -757,7 +929,7 @@ export default function Arena() {
         </div>
       )}
       <footer className="arena-footer">
-        <span>THE ISLAND / VOL. 02</span>
+        <span>THE ISLAND / VOL. 03</span>
         <span>○ △ □</span>
         <span>{s.practice ? 'PRACTICE' : 'SURVIVAL'} / 456</span>
       </footer>

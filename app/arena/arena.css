@@ -1271,3 +1271,308 @@
     bottom: 20px;
   }
 }
+
+/* v3: close cameras, unobstructed doll, swipe throwing and random reveal. */
+.round-0 .arena-clock {
+  display: none;
+}
+.round-0 .arena-round {
+  top: 85px;
+  max-width: 65%;
+}
+.round-0 .arena-round h1 {
+  font-size: 20px;
+}
+.doll-window {
+  position: absolute;
+  top: 100px;
+  right: 16px;
+  width: min(180px, 28vw);
+  aspect-ratio: 10/11;
+  border: 1px solid #eddbb870;
+  pointer-events: none;
+  box-shadow: 0 3px 15px #0005;
+}
+.doll-window span {
+  position: absolute;
+  bottom: 5px;
+  left: 8px;
+  font-size: 12px;
+  color: #fff4d9;
+  text-shadow: 0 1px 4px #000;
+}
+.doll-chant {
+  position: absolute;
+  bottom: 44px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+  pointer-events: none;
+  font-size: 20px;
+  font-weight: bold;
+  text-shadow: 0 2px 5px #000;
+  background: #10262b99;
+  border-radius: 5px;
+  padding: 9px 17px;
+  white-space: nowrap;
+}
+.doll-chant span {
+  color: #c8d4cc80;
+}
+.doll-chant .spoken {
+  color: #ffe8a0;
+  transform: scale(1.16);
+}
+.round-0 .arena-announcement {
+  bottom: 103px;
+  width: 370px;
+  max-width: 52%;
+  font-size: 12px;
+}
+.round-0 .arena-controls {
+  bottom: 65px;
+}
+.round-0 .arena-vignette {
+  background: linear-gradient(
+    180deg,
+    #08171aa8,
+    transparent 27%,
+    transparent 76%,
+    #07151a88
+  );
+}
+.shape-preview {
+  padding: 8px 4px 12px;
+  text-align: center;
+  border: 1px solid #b9a67555;
+  color: #e4c88d;
+  font-size: 14px;
+}
+.shape-preview svg {
+  display: block;
+  width: 65px;
+  height: 65px;
+  margin: auto;
+}
+.shape-preview small {
+  display: block;
+  font-size: 11px;
+  margin-top: 5px;
+  opacity: 0.7;
+}
+.sugar-unboxing {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -45%);
+  width: min(380px, 90vw);
+  text-align: center;
+  pointer-events: none;
+}
+.sugar-unboxing > span {
+  font-size: 16px;
+  color: #f3e9d3;
+  background: #10262bd9;
+  padding: 8px 15px;
+  border-radius: 5px;
+}
+.sugar-unboxing svg {
+  display: block;
+  width: 100%;
+  filter: drop-shadow(0 15px 30px #0005);
+}
+.sugar-unboxing h2 {
+  font-size: 30px;
+  text-shadow: 0 3px 7px #000;
+  margin-top: -15px;
+}
+.round-3 .arena-world {
+  top: 125px;
+  bottom: 265px;
+}
+.stone-dock {
+  position: absolute;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(440px, 90vw);
+  z-index: 3;
+}
+.stone-swipe {
+  height: 185px;
+  background: linear-gradient(0deg, #12303ced, #1b3c46d9);
+  border: 1px solid #8baea75e;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 6px;
+  touch-action: none;
+  user-select: none;
+  cursor: grab;
+  position: relative;
+}
+.swipe-arrow {
+  font-size: 45px;
+  color: #f0d6a2;
+  line-height: 1;
+}
+.stone-swipe strong {
+  font-size: 16px;
+}
+.stone-swipe small {
+  font-size: 12px;
+  color: #b5cac8;
+}
+.stone-dock p {
+  font-size: 13px;
+  text-align: center;
+  color: #ecddbf;
+  margin: 9px 0 0;
+  text-shadow: 0 1px 3px #000;
+}
+.swipe-trail {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.squid-minimap {
+  position: absolute;
+  right: 17px;
+  top: 200px;
+  width: 93px;
+  height: 153px;
+  background: #112830d9;
+  border: 1px solid #d4c19044;
+  border-radius: 7px;
+  padding: 7px;
+  pointer-events: none;
+}
+.round-5 .arena-world {
+  top: 170px;
+  bottom: 35px;
+}
+@media (max-width: 750px) {
+  .round-0 .arena-round {
+    top: 72px;
+  }
+  .round-0 .arena-round h1 {
+    font-size: 17px;
+  }
+  .doll-window {
+    top: 145px;
+  }
+  .doll-chant {
+    bottom: 36px;
+    font-size: 16px;
+    gap: 4px;
+    padding: 7px 10px;
+  }
+  .round-0 .arena-announcement {
+    bottom: 90px;
+    left: auto;
+    right: 12px;
+    transform: none;
+    max-width: 43%;
+    padding: 7px 9px;
+  }
+  .round-0 .arena-controls {
+    bottom: 70px;
+  }
+  .shape-preview {
+    font-size: 12px;
+  }
+  .shape-preview svg {
+    width: 50px;
+    height: 50px;
+  }
+  .stone-dock {
+    bottom: 38px;
+  }
+  .stone-swipe {
+    height: 190px;
+  }
+  .round-3 .arena-world {
+    top: 115px;
+    bottom: 267px;
+  }
+  .squid-minimap {
+    top: 210px;
+    width: 74px;
+    height: 122px;
+    right: 8px;
+  }
+  .round-5 .arena-world {
+    top: 195px;
+    bottom: 35px;
+  }
+}
+@media (max-height: 520px) {
+  .doll-window {
+    width: min(180px, 28vw);
+  }
+  .doll-chant {
+    font-size: 14px;
+    bottom: 25px;
+  }
+  .round-0 .arena-round {
+    top: 70px;
+  }
+  .round-0 .arena-announcement {
+    bottom: 74px;
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    max-width: 46%;
+  }
+  .round-2 .arena-world {
+    top: 85px;
+    bottom: 171px;
+  }
+  .stone-dock {
+    width: 220px;
+    left: auto;
+    right: 15px;
+    transform: none;
+    bottom: 32px;
+  }
+  .stone-swipe {
+    height: 150px;
+  }
+  .stone-swipe strong {
+    font-size: 13px;
+  }
+  .stone-dock p {
+    font-size: 11px;
+  }
+  .round-3 .arena-world {
+    top: 100px;
+    bottom: 25px;
+    right: 245px;
+  }
+  .squid-minimap {
+    top: 120px;
+    width: 60px;
+    height: 100px;
+    right: 10px;
+  }
+  .round-5 .arena-world {
+    top: 118px;
+    bottom: 20px;
+  }
+  .shape-preview svg {
+    width: 35px;
+    height: 35px;
+  }
+  .shape-preview {
+    padding: 3px;
+  }
+  .sugar-unboxing {
+    width: 220px;
+    top: 54%;
+  }
+}

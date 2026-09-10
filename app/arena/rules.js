@@ -1,3 +1,4 @@
+import { swipeVelocity, segmentHitsStone } from './stone.js';
 export const ROUNDS = [
   [
     '무궁화꽃이 피었습니다',
@@ -6,7 +7,7 @@ export const ROUNDS = [
   ],
   [
     '설탕 뽑기',
-    '모양을 고르고 윤곽을 따라 바늘을 움직이세요. 설탕이 깨지면 탈락합니다. 제한 시간 10분.',
+    '상자를 열면 네 가지 중 한 모양이 무작위로 나옵니다. 윤곽을 따라 분리하세요. 설탕이 깨지면 탈락합니다.',
     600,
   ],
   [
@@ -15,8 +16,8 @@ export const ROUNDS = [
     180,
   ],
   [
-    '제기차기',
-    '시즌 2의 제기차기. 내려오는 제기가 발 높이에 왔을 때 차세요. 땅에 떨어뜨리지 않고 5번 연속 차면 통과합니다.',
+    '비석치기',
+    '아래에서 위로 스와이프해 돌을 던지세요. 앞에 세운 비석을 넘어뜨리면 통과합니다. 빗나가면 돌을 회수해 다시 던집니다.',
     300,
   ],
   [
@@ -32,6 +33,30 @@ export const ROUNDS = [
 ];
 export const SHAPES = ['동그라미', '세모', '별', '우산'];
 export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+export const CHANT = [
+  '무',
+  '궁',
+  '화',
+  '꽃',
+  '이',
+  '피',
+  '었',
+  '습',
+  '니',
+  '다',
+];
+export function chantPattern(random) {
+  return CHANT.map(() => 0.24 + random() * 0.43);
+}
+export function beginRound(s) {
+  if (s.status !== 'ready') return;
+  if (s.round === 1) {
+    s.shape = Math.min(3, Math.floor(s.random() * 4));
+    s.trace = shapePoints(s.shape);
+    s.boxTime = 0;
+    s.status = 'opening';
+  } else s.status = 'playing';
+}
 export function shapePoints(shape) {
   let v = [];
   if (shape === 0)
@@ -118,6 +143,9 @@ export function newRun(round = 0, practice = false, random = Math.random) {
     })),
     light: 'green',
     lightRemaining: 4.8,
+    chant: chantPattern(random),
+    chantTime: 0,
+    syllable: 0,
     cycle: 0,
     nextEvent: 7,
     eventId: 0,
@@ -132,12 +160,14 @@ export function newRun(round = 0, practice = false, random = Math.random) {
     revealTime: 10,
     jump: null,
     broken: -1,
-    jegiY: 0.9,
-    jegiV: 0,
-    jegiActive: false,
-    kicks: 0,
-    jegiReset: 0,
-    kickAt: -10,
+    boxTime: 0,
+    stone: { x: 0, y: 1.2, z: 8, vx: 0, vy: 0, vz: 0, active: false },
+    attempts: 0,
+    retrieveTime: 0,
+    retrieveDuration: 0,
+    stoneHit: false,
+    stoneHitTime: 0,
+    throwAt: -10,
     opponentX: 0,
     opponentZ: 0,
     opponentStun: 0,
@@ -290,7 +320,7 @@ export function insideSquid(x, z) {
   return Math.hypot(x, z + 21) <= 3;
 }
 export function squidStep(s, dt, previous) {
-  s.stamina = Math.min(1, s.stamina + dt * 0.16);
+  s.stamina = Math.min(1, s.stamina + dt * 0.28);
   s.opponentStun = Math.max(0, s.opponentStun - dt);
   s.defenderCooldown = Math.max(0, s.defenderCooldown - dt);
   if (s.squidStage === 'neck') {
@@ -325,6 +355,13 @@ export function squidStep(s, dt, previous) {
   }
   s.x = clamp(s.x, -17, 17);
   s.z = clamp(s.z, -26, 29);
+  if (s.squidStage === 'entrance') {
+    const d = Math.hypot(s.opponentX, 18 - s.opponentZ);
+    if (d > 0.1) {
+      s.opponentX -= (s.opponentX / d) * dt * 4.25;
+      s.opponentZ += ((18 - s.opponentZ) / d) * dt * 4.25;
+    }
+  }
   const dx = s.x - s.opponentX,
     dz = s.z - s.opponentZ,
     d = Math.hypot(dx, dz);
@@ -340,29 +377,48 @@ export function squidStep(s, dt, previous) {
         if (s.squidStage === 'attack' && !insideSquid(s.x, s.z))
           finish(s, false, '수비수에게 경계 밖으로 밀려났습니다.');
       }
-      s.defenderCooldown = 1.7;
+      s.defenderCooldown = 1.15;
     }
   } else if (!s.opponentStun && s.squidStage !== 'entrance') {
     if (d < 2.3 && s.defenderCooldown === 0) s.defenderWindup = 0.65;
     else if (d > 1.2) {
-      const nx = s.opponentX + (dx / d) * dt * 3.1,
-        nz = s.opponentZ + (dz / d) * dt * 3.1;
+      const tx =
+        s.squidStage === 'attack' ? s.x + Math.sin(s.heading) * 1.5 : s.x;
+      const tz =
+        s.squidStage === 'attack' ? s.z + Math.cos(s.heading) * 1.5 : s.z;
+      const chase = Math.hypot(tx - s.opponentX, tz - s.opponentZ) || 1;
+      const nx = s.opponentX + ((tx - s.opponentX) / chase) * dt * 4.25,
+        nz = s.opponentZ + ((tz - s.opponentZ) / chase) * dt * 4.25;
       if (insideSquid(nx, nz)) {
         s.opponentX = nx;
         s.opponentZ = nz;
       }
     }
   }
+  // Body contact slows an escape; contestants cannot pass through one another.
+  if (s.squidStage === 'attack' && d < 1.15 && !s.opponentStun) {
+    const ux = d > 0.001 ? dx / d : 1,
+      uz = d > 0.001 ? dz / d : 0;
+    s.x = s.opponentX + ux * 1.15;
+    s.z = s.opponentZ + uz * 1.15;
+    if (!insideSquid(s.x, s.z))
+      finish(s, false, '수비수와 몸싸움 중 경계 밖으로 밀려났습니다.');
+  }
 }
 export function tick(s, dt, input = {}) {
   dt = clamp(dt, 0, 0.05);
+  if (s.status === 'opening') {
+    s.boxTime += dt;
+    if (s.boxTime >= 2.8) s.status = 'playing';
+    return;
+  }
   if (s.status === 'won') {
     s.resultTime = Math.min(3, s.resultTime + dt);
     return;
   }
   if (s.status === 'dying') {
     s.deathTime += dt;
-    if (s.deathTime >= 2.5) s.status = 'lost';
+    if (s.deathTime >= (s.round === 0 ? 4.8 : 2.5)) s.status = 'lost';
     return;
   }
   if (s.status !== 'playing') return;
@@ -376,18 +432,34 @@ export function tick(s, dt, input = {}) {
       s.round === 4 ? 'fall' : 'shot',
     );
   if (s.round === 0) {
-    s.lightRemaining -= dt;
-    if (s.lightRemaining <= 0) {
-      if (s.light === 'green') {
-        s.light = 'warning';
-        s.lightRemaining = 1.2;
-      } else if (s.light === 'warning') {
-        s.light = 'red';
-        s.lightRemaining = 2.6 + s.random() * 2.2;
-      } else {
-        s.light = 'green';
-        s.lightRemaining = 3.2 + s.random() * 3;
-        s.cycle++;
+    if (s.light === 'green') {
+      s.chantTime += dt;
+      let total = 0;
+      s.syllable = 9;
+      for (let i = 0; i < s.chant.length; i++) {
+        total += s.chant[i];
+        if (s.chantTime < total) {
+          s.syllable = i;
+          break;
+        }
+      }
+      if (s.chantTime >= s.chant.reduce((a, b) => a + b, 0)) {
+        s.light = 'turning';
+        s.lightRemaining = 0.34;
+      }
+    } else {
+      s.lightRemaining -= dt;
+      if (s.lightRemaining <= 0) {
+        if (s.light === 'turning') {
+          s.light = 'red';
+          s.lightRemaining = 1.6 + s.random() * 3.2;
+        } else {
+          s.light = 'green';
+          s.chant = chantPattern(s.random);
+          s.chantTime = 0;
+          s.syllable = 0;
+          s.cycle++;
+        }
       }
     }
   }
@@ -401,7 +473,7 @@ export function tick(s, dt, input = {}) {
     }
     if (s.round === 0 && s.light === 'red' && len > 0.08)
       return finish(s, false, '영희가 움직임을 감지했습니다.');
-    const speed = s.round === 5 && s.squidStage === 'neck' ? 3.4 : 6.5;
+    const speed = s.round === 5 ? (s.squidStage === 'neck' ? 2.8 : 3.55) : 6.5;
     s.speed = Math.min(1, len) * speed;
     if (len > 0.08) s.heading = Math.atan2(x, z);
     const previous = { x: s.x, z: s.z };
@@ -423,25 +495,7 @@ export function tick(s, dt, input = {}) {
     if (s.force === 0)
       finish(s, false, '우리 팀이 발판에서 끌려 내려갔습니다.', 'tug');
   }
-  if (s.round === 3) {
-    if (s.jegiReset > 0) {
-      s.jegiReset -= dt;
-      if (s.jegiReset <= 0) {
-        s.jegiActive = false;
-        s.jegiY = 0.9;
-        s.jegiV = 0;
-      }
-    } else if (s.jegiActive) {
-      s.jegiV -= dt * 6;
-      s.jegiY += s.jegiV * dt;
-      if (s.jegiY <= 0.12) {
-        s.jegiY = 0.12;
-        s.kicks = 0;
-        s.jegiReset = 1;
-        announce(s, '제기가 땅에 닿았습니다. 다시 5회에 도전하세요.', 'miss');
-      }
-    }
-  }
+  if (s.round === 3) stoneStep(s, dt);
   if (s.round === 4 && s.jump) {
     s.jump.t += dt;
     if (s.jump.t >= 0.52) {
@@ -489,22 +543,65 @@ export function traceAt(s, x, y) {
     if (s.damage >= 1) finish(s, false, '윤곽 밖을 긁어 설탕이 깨졌습니다.');
   }
 }
+export function throwStone(s, dx, dy, seconds) {
+  if (
+    s.round !== 3 ||
+    s.status !== 'playing' ||
+    s.stone.active ||
+    s.retrieveTime > 0 ||
+    s.stoneHit
+  )
+    return;
+  const v = swipeVelocity(dx, dy, seconds);
+  if (!v) return;
+  s.stone = { x: 0, y: 1.2, z: 8, ...v, active: true };
+  s.attempts++;
+  s.throwAt = s.elapsed;
+  announce(s, '돌을 던졌습니다.', 'throw');
+}
+export function stoneStep(s, dt) {
+  if (s.stoneHit) {
+    s.stoneHitTime += dt;
+    if (s.stoneHitTime > 1.15) finish(s, true, '비석을 넘어뜨렸습니다.');
+    return;
+  }
+  if (s.retrieveTime > 0) {
+    s.retrieveTime = Math.max(0, s.retrieveTime - dt);
+    if (!s.retrieveTime) {
+      s.stone = { x: 0, y: 1.2, z: 8, vx: 0, vy: 0, vz: 0, active: false };
+      announce(s, '돌을 회수했습니다. 다시 던지세요.', 'ready');
+    }
+    return;
+  }
+  const p = s.stone;
+  if (!p.active) return;
+  const old = { x: p.x, y: p.y, z: p.z };
+  p.vy -= 9.8 * dt;
+  p.x += p.vx * dt;
+  p.y += p.vy * dt;
+  p.z += p.vz * dt;
+  if (segmentHitsStone(old, p)) {
+    s.stoneHit = true;
+    p.active = false;
+    announce(s, '명중!', 'stone-hit');
+  } else if (p.y <= 0.12) {
+    p.y = 0.12;
+    p.active = false;
+    s.retrieveDuration = Math.max(2, Math.min(8, Math.hypot(p.x, p.z - 8) / 4));
+    s.retrieveTime = s.retrieveDuration;
+    announce(
+      s,
+      Math.abs(p.x) > 0.7
+        ? '방향이 빗나갔습니다. 돌을 회수합니다.'
+        : p.z > -7
+          ? '조금 더 길고 빠르게 던져보세요. 돌을 회수합니다.'
+          : '너무 높거나 강했습니다. 돌을 회수합니다.',
+      'miss',
+    );
+  }
+}
 export function act(s, value) {
   if (s.status !== 'playing') return;
-  if (
-    s.round === 0 &&
-    value === 'push' &&
-    s.light === 'green' &&
-    s.elapsed - s.pushAt > 1.2
-  ) {
-    s.pushAt = s.elapsed;
-    for (const n of s.crowd)
-      if (n.alive && Math.hypot(n.x - s.x, n.z - s.z) < 2.5) {
-        n.x = clamp(n.x + (n.x >= s.x ? 1.2 : -1.2), -28, 28);
-        n.stagger = 0.65;
-      }
-    announce(s, '앞의 공간을 확보했습니다.', 'shove');
-  }
   if (s.round === 2) {
     if (s.elapsed - s.lastAction < 0.3) return;
     s.lastAction = s.elapsed;
@@ -518,18 +615,6 @@ export function act(s, value) {
       good ? 'pull' : 'miss',
     );
     if (s.force >= 1) finish(s, true, '상대 팀을 낭떠러지로 끌어내렸습니다.');
-  }
-  if (s.round === 3) {
-    if (s.jegiReset > 0 || s.elapsed - s.kickAt < 0.5) return;
-    s.kickAt = s.elapsed;
-    if (!s.jegiActive || (s.jegiV < 0 && s.jegiY >= 0.25 && s.jegiY <= 1.15)) {
-      s.jegiActive = true;
-      s.jegiV = 3.8 + (s.kicks % 3) * 0.25;
-      s.kicks++;
-      announce(s, `${s.kicks} / 5 연속 성공`, 'kick');
-      if (s.kicks === 5) finish(s, true, '제기를 다섯 번 연속 찼습니다.');
-    } else
-      announce(s, '헛발질 · 발을 다시 내릴 때까지 잠깐 기다리세요.', 'miss');
   }
   if (s.round === 4) {
     if (
@@ -559,10 +644,10 @@ export function act(s, value) {
       dz = s.opponentZ - s.z,
       d = Math.hypot(dx, dz);
     if (d < 3.2) {
-      s.opponentStun = 1.2;
+      s.opponentStun = 0.72;
       s.defenderWindup = 0;
-      s.opponentX += (dx / (d || 1)) * 2;
-      s.opponentZ += (dz / (d || 1)) * 2;
+      s.opponentX += (dx / (d || 1)) * 1.5;
+      s.opponentZ += (dz / (d || 1)) * 1.5;
       if (!insideSquid(s.opponentX, s.opponentZ) && s.squidStage === 'attack')
         finish(s, true, '수비수를 경기장 밖으로 밀어냈습니다.');
       else {

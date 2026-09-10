@@ -44,8 +44,8 @@ export function createArena(host, state, update, options = () => ({})) {
     tug = new T.Group(),
     glass = new T.Group(),
     final = new T.Group(),
-    jegiGroup = new T.Group();
-  scene.add(common, field, tug, glass, final, jegiGroup);
+    stoneGroup = new T.Group();
+  scene.add(common, field, tug, glass, final, stoneGroup);
   function box(w, h, d, x, y, z, c, parent = common) {
     const m = new T.Mesh(new T.BoxGeometry(w, h, d), mat(c));
     m.position.set(x, y, z);
@@ -88,8 +88,25 @@ export function createArena(host, state, update, options = () => ({})) {
   const crowd = instancedCrowd(scene, mat),
     player = createCharacter('#278673', false, true, mat, false);
   scene.add(player);
-  const marker = label('▼ 456', 1.1, '#fff6a3');
+  const marker = label('▼ 456', 1.5, '#fff384');
+  marker.renderOrder = 1000;
   scene.add(marker);
+  const playerHalo = new T.Mesh(
+    new T.RingGeometry(0.86, 1.05, 48),
+    new T.MeshBasicMaterial({
+      color: '#ffef80',
+      side: T.DoubleSide,
+      depthTest: false,
+      transparent: true,
+      opacity: 0.95,
+    }),
+  );
+  playerHalo.rotation.x = -Math.PI / 2;
+  playerHalo.renderOrder = 999;
+  scene.add(playerHalo);
+  const dollCamera = new T.PerspectiveCamera(38, 1, 0.1, 100);
+  dollCamera.position.set(0, 8, -28);
+  dollCamera.lookAt(0, 6.6, -44);
   const guards = [];
   for (const side of [-1, 1])
     for (let z = -38; z <= 42; z += 20) {
@@ -105,6 +122,28 @@ export function createArena(host, state, update, options = () => ({})) {
   caution.position.y = 3;
   defender.add(caution);
   function line(points, color, parent) {
+    if (parent === final) {
+      const group = new T.Group();
+      for (let i = 1; i < points.length; i++) {
+        const a = points[i - 1],
+          b = points[i],
+          length = Math.hypot(b[0] - a[0], b[2] - a[2]);
+        for (const [width, y, c] of [
+          [0.34, 0.035, '#51493a'],
+          [0.21, 0.055, color],
+        ]) {
+          const strip = new T.Mesh(
+            new T.BoxGeometry(width, 0.022, length),
+            new T.MeshBasicMaterial({ color: c }),
+          );
+          strip.position.set((a[0] + b[0]) / 2, y, (a[2] + b[2]) / 2);
+          strip.rotation.y = Math.atan2(b[0] - a[0], b[2] - a[2]);
+          group.add(strip);
+        }
+      }
+      parent.add(group);
+      return group;
+    }
     const l = new T.Line(
       new T.BufferGeometry().setFromPoints(
         points.map((p) => new T.Vector3(...p)),
@@ -144,8 +183,8 @@ export function createArena(host, state, update, options = () => ({})) {
       final,
     );
   const goal = new T.Mesh(
-    new T.RingGeometry(2.65, 2.9, 48),
-    new T.MeshBasicMaterial({ color: '#f6df9b', side: T.DoubleSide }),
+    new T.RingGeometry(2.55, 3.02, 64),
+    new T.MeshBasicMaterial({ color: '#fff1b4', side: T.DoubleSide }),
   );
   goal.rotation.x = -Math.PI / 2;
   goal.position.set(0, 0.05, -21);
@@ -169,7 +208,7 @@ export function createArena(host, state, update, options = () => ({})) {
   rope.position.y = 1.2;
   tug.add(rope);
   const sweat = new T.InstancedMesh(
-    new T.SphereGeometry(0.045, 5, 4),
+    new T.SphereGeometry(0.065, 5, 4),
     mat('#b4e4ef'),
     20,
   );
@@ -188,8 +227,14 @@ export function createArena(host, state, update, options = () => ({})) {
         false,
       );
       tug.add(c);
+      c.userData.head.material = c.userData.head.material.clone();
       teams.push({ c, side, i });
     }
+  const bubbles = ['영~차! 영~차!', '하나! 둘!!', '버텨!!'].map((text) => {
+    const b = label(text, 2.3, '#293d3c', true);
+    tug.add(b);
+    return b;
+  });
   // A continuous open bridge: no surrounding walls and one stable overview camera.
   const panes = [],
     marks = [];
@@ -224,32 +269,32 @@ export function createArena(host, state, update, options = () => ({})) {
   const stepLabel = label('START', 1.7);
   stepLabel.position.set(0, 0.2, 40);
   glass.add(stepLabel);
-  const jegi = new T.Group();
-  jegiGroup.add(jegi);
-  const coin = new T.Mesh(
-    new T.CylinderGeometry(0.13, 0.13, 0.07, 16),
-    mat('#bbad82'),
-  );
-  jegi.add(coin);
-  for (let i = 0; i < 9; i++) {
-    const strip = new T.Mesh(
-      new T.PlaneGeometry(0.065, 0.5),
-      new T.MeshStandardMaterial({
-        color: i % 2 ? '#ec628a' : '#a5efec',
-        side: T.DoubleSide,
-      }),
-    );
-    strip.position.y = 0.2;
-    strip.rotation.set(0.3 * Math.sin(i), i * 0.7, 0.5 * Math.cos(i));
-    jegi.add(strip);
-  }
-  const kickRing = new T.Mesh(
-    new T.TorusGeometry(0.65, 0.025, 6, 36),
-    new T.MeshBasicMaterial({ color: '#9cf1d5' }),
-  );
-  kickRing.rotation.x = Math.PI / 2;
-  kickRing.position.set(0, 0.025, 0.8);
-  jegiGroup.add(kickRing);
+  const targetStone = new T.Group();
+  targetStone.position.set(0, 0, -8);
+  stoneGroup.add(targetStone);
+  box(0.75, 1.4, 0.65, 0, 0.7, 0, '#67777d', targetStone);
+  box(0.76, 0.2, 0.66, 0, 1.04, 0, '#d3cdb6', targetStone);
+  const thrownStone = box(0.36, 0.28, 0.46, 0, 1.2, 8, '#7b8b8c', stoneGroup);
+  box(9, 0.04, 0.18, 0, 0.02, 7.2, '#faf0d0', stoneGroup);
+  const targetCaption = label('비석', 1, '#fff2c5');
+  targetCaption.position.set(0, 2.2, -8);
+  stoneGroup.add(targetCaption);
+  const blood = new T.Group();
+  scene.add(blood);
+  const bloodMat = new T.MeshBasicMaterial({
+      color: '#8c1829',
+      side: T.DoubleSide,
+      transparent: true,
+      opacity: 0.8,
+    }),
+    pool = new T.Mesh(new T.CircleGeometry(1, 32), bloodMat);
+  pool.rotation.x = -Math.PI / 2;
+  blood.add(pool);
+  const droplets = Array.from({ length: 18 }, () => {
+    const p = new T.Mesh(new T.SphereGeometry(0.055, 5, 4), mat('#941b27'));
+    blood.add(p);
+    return p;
+  });
   const shotLine = line(
     [
       [0, 0, 0],
@@ -300,7 +345,7 @@ export function createArena(host, state, update, options = () => ({})) {
     tug.visible = s.round === 2;
     glass.visible = s.round === 4;
     final.visible = s.round === 5;
-    jegiGroup.visible = s.round === 3;
+    stoneGroup.visible = s.round === 3;
     common.visible = s.round !== 2 && s.round !== 4;
     const dark = s.round === 2 || s.round === 4;
     scene.background.set(dark ? '#101725' : '#719aa6');
@@ -308,8 +353,8 @@ export function createArena(host, state, update, options = () => ({})) {
     crowd.update(s, visualTime);
     player.visible =
       s.round === 0 || s.round === 3 || s.round === 4 || s.round === 5;
-    player.position.set(s.round === 3 ? 0 : s.x, 0, s.round === 3 ? 0 : s.z);
-    player.rotation.set(0, s.round === 3 ? 0.3 : s.heading, 0);
+    player.position.set(s.round === 3 ? 0 : s.x, 0, s.round === 3 ? 8.8 : s.z);
+    player.rotation.set(0, s.round === 3 ? Math.PI : s.heading, 0);
     const hopping =
       s.round === 5 &&
       s.squidStage === 'neck' &&
@@ -324,13 +369,23 @@ export function createArena(host, state, update, options = () => ({})) {
     );
     if (hopping) player.userData.legs[1].rotation.x = -0.9;
     if (s.round === 3) {
-      player.userData.legs[1].rotation.x =
-        -Math.max(0, 1 - (s.elapsed - s.kickAt) * 3) * 1.25;
-      jegi.position.set(0.2, s.jegiY, 0.85);
-      jegi.rotation.y = visualTime * 5;
-      kickRing.material.color.set(
-        s.jegiV < 0 && s.jegiY < 1.15 ? '#a9ffb8' : '#e4c586',
-      );
+      const p = s.stone;
+      thrownStone.position.set(p.x, p.y, p.z);
+      thrownStone.rotation.x = s.stone.active ? (s.elapsed - s.throwAt) * 9 : 0;
+      targetStone.rotation.x = s.stoneHit
+        ? -Math.min(Math.PI / 2, s.stoneHitTime * 3)
+        : 0;
+      player.userData.arms[1].rotation.x =
+        -Math.max(0, 1 - (s.elapsed - s.throwAt) * 1.5) * 2.2;
+      if (s.retrieveTime > 0) {
+        const t = 1 - s.retrieveTime / s.retrieveDuration,
+          travel = t < 0.5 ? t * 2 : (1 - t) * 2;
+        player.position.set(p.x * travel, 0, 8.8 + (p.z - 8.8) * travel);
+        player.rotation.y =
+          t < 0.5 ? Math.atan2(p.x, p.z - 8.8) : Math.atan2(-p.x, 8.8 - p.z);
+        animateCharacter(player, opt.paused ? 0 : dt, 4, false);
+        thrownStone.visible = t < 0.5;
+      } else thrownStone.visible = !s.stoneHit;
     }
     if (s.jump) {
       const t = Math.min(1, s.jump.t / 0.52);
@@ -347,13 +402,36 @@ export function createArena(host, state, update, options = () => ({})) {
     if (dying) {
       if (s.deathKind === 'fall')
         player.position.y = -Math.min(20, s.deathTime * s.deathTime * 6);
-      else {
+      else if (s.round === 0) {
+        const t = s.deathTime;
+        player.userData.body.rotation.x = Math.min(0.9, t * 0.5);
+        player.userData.knees.forEach((k) => (k.rotation.x = Math.min(1.3, t)));
+        player.position.y = -Math.min(0.65, t * 0.45);
+        player.rotation.z = Math.max(0, Math.min(Math.PI / 2, (t - 1.1) * 0.7));
+      } else {
         player.rotation.z = Math.min(Math.PI / 2, s.deathTime * 2.2);
         player.position.y = -Math.min(0.35, s.deathTime * 0.2);
       }
     }
     marker.visible = player.visible && !dying && s.round !== 3;
     marker.position.copy(player.position).add(new T.Vector3(0, 3, 0));
+    playerHalo.visible = marker.visible;
+    playerHalo.position.set(player.position.x, 0.055, player.position.z);
+    blood.visible = s.round === 0 && dying;
+    if (blood.visible) {
+      const t = s.deathTime;
+      pool.position.set(s.x + 0.35, 0.045, s.z);
+      pool.scale.set(Math.min(1.45, t * 0.36), Math.min(0.9, t * 0.25), 1);
+      droplets.forEach((p, i) => {
+        const a = i * 2.4;
+        p.visible = t < 1.2;
+        p.position.set(
+          s.x + Math.cos(a) * t * (0.4 + i * 0.04),
+          Math.max(0.06, 1.3 + t * (i % 3) * 0.2 - t * t * 2.3),
+          s.z + Math.sin(a) * t * 0.8,
+        );
+      });
+    }
     const headTarget = s.light === 'green' ? Math.PI : 0;
     doll.userData.head.rotation.y = T.MathUtils.lerp(
       doll.userData.head.rotation.y,
@@ -388,6 +466,10 @@ export function createArena(host, state, update, options = () => ({})) {
       c.userData.body.rotation.x = -0.22 - Math.sin(visualTime * 7) * 0.035;
       c.userData.legs[0].rotation.x = 0.35;
       c.userData.legs[1].rotation.x = -0.3;
+      const strain = side < 0 ? 1 - s.force : s.force;
+      c.userData.head.material.color
+        .set('#d7ae8a')
+        .lerp(new T.Color('#df4d4f'), Math.max(0, (strain - 0.55) * 2));
       if (losing) c.rotation.z = side * 0.7;
       else c.rotation.z = 0;
     }
@@ -401,6 +483,13 @@ export function createArena(host, state, update, options = () => ({})) {
       sweat.setMatrixAt(i, sweatTransform.matrix);
     });
     sweat.instanceMatrix.needsUpdate = true;
+    bubbles.forEach((b, i) => {
+      const beat = Math.floor(s.elapsed / 3.5),
+        active =
+          s.status === 'playing' && s.elapsed % 3.5 < 1.6 && i === beat % 3;
+      b.visible = active;
+      b.position.set(teams[i === 1 ? 10 : 0].c.position.x, 3.1, 0);
+    });
     const reveal =
       s.round === 4 &&
       s.memory &&
@@ -459,6 +548,32 @@ export function createArena(host, state, update, options = () => ({})) {
       );
     camera.lookAt(...pose.look);
     renderer.render(scene, camera);
+    if (s.round === 0 && s.status === 'playing') {
+      const w = Math.min(180, host.clientWidth * 0.28),
+        h = w * 1.1,
+        top = window.innerWidth < 750 ? 145 : 100;
+      dollCamera.aspect = w / h;
+      dollCamera.updateProjectionMatrix();
+      renderer.setScissorTest(true);
+      renderer.setScissor(
+        host.clientWidth - w - 16,
+        host.clientHeight - top - h,
+        w,
+        h,
+      );
+      renderer.setViewport(
+        host.clientWidth - w - 16,
+        host.clientHeight - top - h,
+        w,
+        h,
+      );
+      renderer.clearDepth();
+      renderer.shadowMap.autoUpdate = false;
+      renderer.render(scene, dollCamera);
+      renderer.shadowMap.autoUpdate = true;
+      renderer.setScissorTest(false);
+      renderer.setViewport(0, 0, host.clientWidth, host.clientHeight);
+    }
     raf = requestAnimationFrame(frame);
   }
   raf = requestAnimationFrame(frame);

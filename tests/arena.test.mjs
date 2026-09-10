@@ -11,6 +11,8 @@ import {
   traceAt,
   joystickVector,
   insideSquid,
+  beginRound,
+  throwStone,
 } from '../app/arena/rules.js';
 import { cameraPose } from '../app/arena/visuals.js';
 const playing = (r) =>
@@ -27,7 +29,7 @@ test('456 distinct contestants and 5 minute opening limit', () => {
   assert.equal(new Set(s.crowd.map((n) => `${n.x}:${n.z}`)).size, 455);
   assert.equal(s.time, 300);
 });
-test('red movement starts a 2.5 second death sequence, standing is safe', () => {
+test('red movement starts a slow death sequence, standing is safe', () => {
   const s = playing(0);
   s.light = 'red';
   s.lightRemaining = 3;
@@ -38,17 +40,18 @@ test('red movement starts a 2.5 second death sequence, standing is safe', () => 
   assert.equal(s.shotId, 1);
   frames(s, 100);
   assert.equal(s.status, 'dying');
-  frames(s, 60);
+  frames(s, 210);
   assert.equal(s.status, 'lost');
 });
-test('turn warning precedes randomized red phase and clear finish wins', () => {
+test('chant ends before the doll turns and clear finish wins', () => {
   const s = playing(0);
-  s.lightRemaining = 0.01;
+  s.chantTime = s.chant.reduce((a, b) => a + b, 0) - 0.01;
   tick(s, 0.02);
-  assert.equal(signal(s), 'warning');
+  assert.equal(signal(s), 'turning');
   frames(s, 80);
   assert.equal(signal(s), 'red');
   s.light = 'green';
+  s.chantTime = 0;
   s.lightRemaining = 2;
   s.z = -33.1;
   tick(s, 0.02);
@@ -108,29 +111,39 @@ test('rope rewards timing and ignores instant repeat taps', () => {
   frames(s, 100);
   assert.ok(s.resultTime > 1.5);
 });
-test('jegi requires five successive timed kicks and ground contact resets score', () => {
+test('centered medium stone swipe knocks target down before winning', () => {
   const s = playing(3);
-  act(s, 0);
-  let f = 0;
-  while (s.status === 'playing' && f++ < 2000) {
-    tick(s, 0.016);
-    if (s.jegiV < 0 && s.jegiY < 0.9) act(s, 0);
-  }
+  throwStone(s, 0, -0.4, 0.5);
+  frames(s, 180);
   assert.equal(s.status, 'won');
-  assert.equal(s.kicks, 5);
-  const miss = playing(3);
-  act(miss, 0);
-  frames(miss, 200);
-  assert.equal(miss.kicks, 0);
-  assert.equal(miss.status, 'playing');
+  assert.equal(s.stoneHit, true);
 });
-test('jegi cannot be won by instantly spamming repeated input', () => {
+test('missed stone requires retrieval and repeat input cannot spawn more stones', () => {
   const s = playing(3);
-  for (let i = 0; i < 650; i++) {
-    tick(s, 0.016);
-    act(s, 0);
+  throwStone(s, 0.4, -0.4, 0.5);
+  throwStone(s, 0, -0.4, 0.5);
+  assert.equal(s.attempts, 1);
+  frames(s, 700);
+  assert.equal(s.status, 'playing');
+  assert.equal(s.retrieveTime, 0);
+  throwStone(s, 0, -0.4, 0.5);
+  frames(s, 180);
+  assert.equal(s.status, 'won');
+});
+
+test('random sugar opening pauses clock and blocks tracing until reveal completes', () => {
+  for (let shape = 0; shape < 4; shape++) {
+    const s = newRun(1, false, () => (shape + 0.1) / 4);
+    beginRound(s);
+    assert.equal(s.shape, shape);
+    assert.equal(s.status, 'opening');
+    const time = s.time;
+    traceAt(s, 3, 3);
+    frames(s, 100);
+    assert.equal(s.time, time);
+    frames(s, 80);
+    assert.equal(s.status, 'playing');
   }
-  assert.notEqual(s.status, 'won');
 });
 test('bridge preview blocks choices and each safe landing advances once', () => {
   const s = playing(4);
@@ -253,7 +266,7 @@ test('all six rounds settle only once after timeout', () => {
     s.time = 0.001;
     tick(s, 0.05);
     assert.equal(s.status, 'dying');
-    frames(s, 170);
+    frames(s, 310);
     assert.equal(s.status, 'lost');
     const id = s.shotId;
     tick(s, 0.05);

@@ -171,12 +171,28 @@ export function instancedCrowd(scene, material) {
     },
   };
 }
-export function label(text, size = 1.5, color = '#f6ebc8') {
+export function label(text, size = 1.5, color = '#f6ebc8', bubble = false) {
   const canvas = document.createElement('canvas');
   canvas.width = 256;
   canvas.height = 128;
   const c = canvas.getContext('2d');
+  if (bubble) {
+    c.fillStyle = '#f6f1de';
+    c.beginPath();
+    c.roundRect(5, 8, 246, 100, 18);
+    c.fill();
+    c.beginPath();
+    c.moveTo(108, 104);
+    c.lineTo(123, 126);
+    c.lineTo(142, 104);
+    c.fill();
+  }
   c.font = 'bold 64px Arial';
+  let fontSize = 64;
+  while (c.measureText(text).width > 240 && fontSize > 18) {
+    fontSize -= 2;
+    c.font = `bold ${fontSize}px Arial`;
+  }
   c.textAlign = 'center';
   c.textBaseline = 'middle';
   c.fillStyle = color;
@@ -193,15 +209,17 @@ export function label(text, size = 1.5, color = '#f6ebc8') {
   return sprite;
 }
 export function cameraPose(s, aspect, overview = false) {
-  if (s.round === 0 && (overview || s.status === 'ready'))
+  if (s.round === 0 && (s.status === 'dying' || s.status === 'lost'))
+    return { position: [s.x + 3.5, 3, s.z + 5.5], look: [s.x, 0.7, s.z] };
+  if (s.round === 0 && overview)
     return {
       position: [0, aspect < 1 ? 115 : 77, aspect < 1 ? 106 : 89],
       look: [0, 0, 5],
     };
   if (s.round === 0)
     return {
-      position: [s.x * 0.6, 20, s.z + 23],
-      look: [s.x * 0.65, 1, s.z - 13],
+      position: [s.x, 5.8, s.z + 10],
+      look: [s.x, 2.1, s.z - 12],
     };
   if (s.round === 4)
     return {
@@ -210,14 +228,14 @@ export function cameraPose(s, aspect, overview = false) {
     };
   if (s.round === 2)
     return {
-      position: [0, aspect < 1 ? 25 : 15, aspect < 1 ? 46 : 32],
-      look: [0, 2, 0],
+      position: [-(s.force - 0.5) * 8 - 4, 4.2, aspect < 1 ? 15 : 12],
+      look: [-(s.force - 0.5) * 8, 1.2, 0],
     };
-  if (s.round === 3) return { position: [4, 4.7, 9], look: [0, 1.5, 0] };
+  if (s.round === 3) return { position: [2.6, 4.5, 14], look: [0, 0.7, -5] };
   if (s.round === 5)
     return {
-      position: [0, aspect < 1 ? 49 : 37, aspect < 1 ? 53 : 43],
-      look: [0, 0, 2],
+      position: [s.x, 10.5, s.z + 13],
+      look: [s.x, 0.8, s.z - 5],
     };
   return { position: [0, 23, 30], look: [0, 0, 0] };
 }

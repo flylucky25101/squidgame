@@ -78,7 +78,16 @@ export function createCharacter(color, guard, player, material, armed = true) {
   const gun = box(0.14, 0.16, 0.38, 0, -0.34, 0.15, '#1b2a31', elbows[1]);
   gun.visible = armed;
   box(0.11, 0.08, 0.22, 0, 0.075, 0.025, '#64736f', gun);
-  root.userData = { body, legs, knees, arms, elbows, phase: 0, stride: 0 };
+  root.userData = {
+    body,
+    head,
+    legs,
+    knees,
+    arms,
+    elbows,
+    phase: 0,
+    stride: 0,
+  };
   if (player) {
     const ring = new THREE.Mesh(
       new THREE.RingGeometry(0.77, 0.84, 40),
