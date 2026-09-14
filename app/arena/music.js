@@ -27,7 +27,7 @@ export const SCORES = [
     tone: 'bell',
   },
   {
-    name: '설탕 위의 초침',
+    name: '회전목마의 초침',
     bpm: 76,
     root: 57,
     melody: [
@@ -62,7 +62,7 @@ export const SCORES = [
     tone: 'string',
   },
   {
-    name: '한 번의 궤적',
+    name: '손끝의 다섯 알',
     bpm: 100,
     root: 45,
     melody: [
@@ -114,7 +114,7 @@ export const SCORES = [
     tone: 'bell',
   },
   {
-    name: '마지막 원',
+    name: '마지막 줄',
     bpm: 132,
     root: 38,
     melody: [12, 7, 12, 15, 19, 15, 12, 7, 13, 7, 13, 17, 20, 17, 13, 7],
@@ -165,7 +165,7 @@ export function createMusic(ctx) {
     next = 0,
     running = false,
     muted = false,
-    volume = 0.65,
+    volume = 0.8,
     ended = '';
   const hz = (n) => 440 * 2 ** ((n - 69) / 12);
   const noise = ctx.createBuffer(1, ctx.sampleRate * 0.25, ctx.sampleRate);
@@ -290,12 +290,12 @@ export function createMusic(ctx) {
     const duck =
       s.round === 0
         ? s.light === 'green'
-          ? 0.24
-          : 0.42
+          ? 0.55
+          : 0.75
         : s.status === 'opening'
           ? 0.5
           : 1;
-    bus.gain.setTargetAtTime(volume * 0.65 * duck, ctx.currentTime, 0.15);
+    bus.gain.setTargetAtTime(volume * 1.3 * duck, ctx.currentTime, 0.15);
     if (next < ctx.currentTime) next = ctx.currentTime + 0.025;
     while (next < ctx.currentTime + 0.14) {
       const beat = 60 / score.bpm,

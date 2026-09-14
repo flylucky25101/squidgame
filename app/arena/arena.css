@@ -1613,3 +1613,291 @@
     top: 54%;
   }
 }
+.challenge-stage {
+  position: absolute;
+  z-index: 5;
+  top: 125px;
+  bottom: 42px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(680px, 94vw);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  padding: 18px;
+  background: linear-gradient(145deg, #18353eee, #0c1c28f5);
+  border: 1px solid #8cafab55;
+  border-radius: 16px;
+  box-shadow: 0 20px 80px #0008;
+  overflow: auto;
+}
+.challenge-guide {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  color: #f6e8bd;
+  text-align: center;
+  flex-shrink: 0;
+}
+.challenge-guide strong {
+  font-size: 23px;
+}
+.challenge-guide span {
+  font-size: 15px;
+  line-height: 1.45;
+  color: #e1ebe5;
+}
+.challenge-stage svg {
+  width: 100%;
+  min-height: 160px;
+  flex: 1;
+}
+.challenge-stage svg [role='button'] {
+  cursor: pointer;
+  outline: none;
+}
+.challenge-stage svg [role='button']:focus {
+  filter: drop-shadow(0 0 2px white);
+}
+.challenge-stage p {
+  font-size: 13px;
+  color: #c8d9d7;
+  text-align: center;
+  margin: 0;
+}
+.challenge-stage progress {
+  width: 100%;
+  accent-color: #efbd76;
+}
+.mingle-rooms {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.mingle-rooms button {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  align-items: center;
+  padding: 13px 3px;
+  border: 2px solid #be817e;
+  background: #5b3643;
+  color: #ffe9d0;
+  border-radius: 8px;
+}
+.mingle-rooms .vacant {
+  background: #236d60;
+  border-color: #a2e4b6;
+}
+.mingle-rooms span,
+.mingle-rooms small {
+  font-size: 11px;
+}
+.mingle-rooms strong {
+  font-size: 16px;
+}
+.spinning {
+  animation: carousel-sway 1s ease-in-out infinite alternate;
+}
+@keyframes carousel-sway {
+  from {
+    transform: rotate(-4deg);
+  }
+  to {
+    transform: rotate(4deg);
+  }
+}
+.gonggi-order {
+  text-align: center;
+  font-size: 19px;
+  color: #ffdf91;
+}
+.challenge-buttons {
+  display: flex;
+  gap: 14px;
+  flex-shrink: 0;
+}
+.challenge-buttons button {
+  flex: 1;
+  padding: 18px 8px;
+  background: #d85980;
+  color: white;
+  border: 1px solid #fca6ba;
+  border-radius: 8px;
+  font-size: 18px;
+  touch-action: none;
+}
+.challenge-buttons button:disabled {
+  opacity: 0.4;
+}
+.challenge-buttons .catch-ready {
+  background: #278c71;
+  border-color: #bbffb2;
+}
+.play-instructions {
+  position: absolute;
+  z-index: 6;
+  top: 132px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(560px, 65vw);
+  padding: 10px 15px;
+  background: #10252ee8;
+  color: #fff0ba;
+  border: 1px solid #e0c78e55;
+  border-radius: 8px;
+  text-align: center;
+  font-size: 14px;
+  pointer-events: none;
+}
+.sound-check {
+  position: absolute;
+  right: 22px;
+  top: 80px;
+  z-index: 15;
+  background: #183b43;
+  border: 1px solid #789d9e;
+  color: #f7e4ab;
+  border-radius: 5px;
+  padding: 7px 10px;
+  font-size: 12px;
+}
+.round-1 .arena-world,
+.round-3 .arena-world,
+.round-5 .arena-world {
+  visibility: hidden;
+}
+.round-0 .doll-chant {
+  bottom: auto;
+  top: 205px;
+}
+.round-0 .play-instructions {
+  top: 132px;
+  width: min(500px, 52vw);
+  left: 44%;
+}
+.round-4 .play-instructions {
+  top: 125px;
+}
+.round-4 .bridge-instruction {
+  top: 200px;
+}
+.bridge-map {
+  grid-template-columns: repeat(10, 1fr) !important;
+}
+.round-2 .play-instructions {
+  top: 118px;
+}
+.round-2 .tug-dock p {
+  position: fixed;
+  top: -50px;
+  background: #10252e;
+  padding: 9px;
+  left: 0;
+  right: 0;
+  border-radius: 6px;
+}
+@media (max-width: 750px) {
+  .challenge-stage {
+    top: 142px;
+    padding: 12px;
+    gap: 9px;
+    bottom: 34px;
+  }
+  .challenge-guide strong {
+    font-size: 20px;
+  }
+  .challenge-guide span {
+    font-size: 14px;
+  }
+  .sound-check {
+    top: 108px;
+    right: 12px;
+    padding: 4px 7px;
+  }
+  .play-instructions {
+    top: 145px;
+    width: 90vw;
+    font-size: 13px;
+  }
+  .round-0 .play-instructions {
+    top: 139px;
+    left: 12px;
+    transform: none;
+    width: 60vw;
+    font-size: 12px;
+  }
+  .round-0 .doll-chant {
+    top: 247px;
+    bottom: auto;
+    font-size: 14px;
+  }
+  .round-4 .play-instructions {
+    top: 143px;
+  }
+  .round-4 .bridge-instruction {
+    top: 207px;
+  }
+  .round-2 .play-instructions {
+    top: 143px;
+  }
+  .challenge-buttons button {
+    font-size: 16px;
+    padding: 15px 5px;
+  }
+}
+@media (max-height: 520px) {
+  .challenge-stage {
+    top: 95px;
+    bottom: 20px;
+    width: 72vw;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    padding: 8px;
+  }
+  .challenge-guide {
+    grid-column: 1/-1;
+  }
+  .challenge-guide strong {
+    font-size: 16px;
+  }
+  .challenge-guide span {
+    font-size: 12px;
+  }
+  .challenge-stage svg {
+    min-height: 100px;
+    max-height: 160px;
+  }
+  .challenge-stage p {
+    display: none;
+  }
+  .mingle-rooms {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .challenge-buttons {
+    flex-direction: column;
+    justify-content: center;
+  }
+  .sound-check {
+    top: 72px;
+    right: 12px;
+  }
+  .play-instructions,
+  .round-0 .play-instructions,
+  .round-4 .play-instructions,
+  .round-2 .play-instructions {
+    top: 108px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 55vw;
+    font-size: 11px;
+  }
+  .round-0 .doll-chant {
+    top: 174px;
+  }
+  .round-4 .bridge-instruction {
+    top: 169px;
+  }
+}

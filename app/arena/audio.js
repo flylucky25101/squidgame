@@ -2,6 +2,12 @@ import { createMusic } from './music.js';
 
 export function createAudio() {
   let music = null;
+  let volume = 0.8,
+    loaded = false,
+    lastState = null,
+    paused = true,
+    timer = null,
+    error = '';
   let ctx = null,
     muted = false;
   const clips = [],
@@ -9,6 +15,15 @@ export function createAudio() {
   function context() {
     ctx ??= new (window.AudioContext || window.webkitAudioContext)();
     music ??= createMusic(ctx);
+    music.volume(volume);
+    music.mute(muted);
+    timer ??= setInterval(() => {
+      try {
+        if (lastState) music.update(lastState, paused);
+      } catch (e) {
+        error = e.message;
+      }
+    }, 50);
     return ctx;
   }
   async function preload() {
@@ -64,7 +79,6 @@ export function createAudio() {
       n.start();
     } catch {}
   }
-  preload();
   function play(kind) {
     if (muted) return;
     try {
@@ -130,20 +144,49 @@ export function createAudio() {
     }
   }
   return {
-    unlock() {
+    async unlock() {
       try {
-        context().resume();
-      } catch {}
+        const c = context();
+        await c.resume();
+        if (!loaded) {
+          loaded = true;
+          preload();
+        }
+        error = '';
+        return c.state === 'running'
+          ? '소리 재생 준비 완료'
+          : '브라우저가 소리를 일시 중지했습니다. 다시 눌러주세요.';
+      } catch (e) {
+        error = e.message;
+        return '소리를 시작하지 못했습니다. 기기 음량과 브라우저 소리 권한을 확인하세요.';
+      }
     },
     updateMusic(s, paused) {
       try {
+        lastState = s;
+        this.setPaused(paused);
         music?.update(s, paused);
-      } catch {}
+      } catch (e) {
+        error = e.message;
+      }
+    },
+    setPaused(value) {
+      paused = value;
+    },
+    status() {
+      return (
+        error ||
+        (ctx?.state === 'running'
+          ? '소리 재생 준비 완료'
+          : '소리 켜기를 눌러주세요')
+      );
     },
     pauseMusic() {
+      paused = true;
       music?.pause();
     },
     musicVolume(value) {
+      volume = Number(value);
       music?.volume(value);
     },
     play,
@@ -160,6 +203,7 @@ export function createAudio() {
       if (value) stopChant();
     },
     dispose() {
+      clearInterval(timer);
       stopChant();
       music?.dispose();
       ctx?.close();

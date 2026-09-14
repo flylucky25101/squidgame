@@ -79,66 +79,6 @@ test('red-light bystander panic does not displace or kill a stationary player', 
   assert.equal(s.z, z);
   assert.equal(s.crowd.filter((n) => !n.alive).length, 1);
 });
-test('all four sugar shapes have distinct traces and can be completed', () => {
-  const signatures = new Set();
-  for (let shape = 0; shape < 4; shape++) {
-    const s = newRun(1);
-    chooseShape(s, shape);
-    signatures.add(JSON.stringify(s.trace));
-    s.status = 'playing';
-    for (const [x, y] of s.trace) traceAt(s, x, y);
-    assert.equal(s.status, 'won');
-  }
-  assert.equal(signatures.size, 4);
-});
-test('sugar cannot skip to a far endpoint and scratching breaks it', () => {
-  const s = playing(1);
-  for (let i = 0; i < 3; i++) {
-    s.elapsed = i * 0.7;
-    traceAt(s, 3, 3);
-  }
-  assert.equal(s.status, 'dying');
-  assert.equal(s.progress, 0);
-});
-
-test('a single drag burst warns once rather than instantly breaking sugar', () => {
-  const s = playing(1);
-  for (let i = 0; i < 100; i++) traceAt(s, 3, 3);
-  assert.equal(s.status, 'playing');
-  assert.equal(s.damage, 0.34);
-  assert.match(s.traceHint, /밝은 점/);
-  traceAt(s, ...s.trace[0]);
-  assert.equal(s.traceHint, '');
-});
-
-test('squid head overlaps the triangle and shove preserves defender position near head', () => {
-  assert.equal(insideSquid(1.5, -19), true);
-  const s = playing(5);
-  s.squidStage = 'attack';
-  s.x = 0;
-  s.z = -10;
-  s.opponentX = 0;
-  s.opponentZ = -12;
-  act(s, 'push');
-  assert.equal(s.opponentZ, -13.5);
-  assert.equal(s.status, 'playing');
-});
-
-test('squid defender can be interrupted and bypassed during its stun', () => {
-  const s = playing(5);
-  s.squidStage = 'attack';
-  s.x = 0;
-  s.z = 12;
-  s.opponentX = 0;
-  s.opponentZ = 10;
-  s.defenderWindup = 0.2;
-  act(s, 'push');
-  assert.equal(s.defenderWindup, 0);
-  frames(s, 40, { x: 1, z: -1 });
-  assert.ok(s.x > 1.4);
-  assert.ok(s.z < 10.6);
-  assert.equal(s.status, 'playing');
-});
 test('rope rewards timing and ignores instant repeat taps', () => {
   const s = playing(2);
   act(s, 0);
@@ -153,40 +93,6 @@ test('rope rewards timing and ignores instant repeat taps', () => {
   frames(s, 100);
   assert.ok(s.resultTime > 1.5);
 });
-test('centered medium stone swipe knocks target down before winning', () => {
-  const s = playing(3);
-  throwStone(s, 0, -0.4, 0.5);
-  frames(s, 180);
-  assert.equal(s.status, 'won');
-  assert.equal(s.stoneHit, true);
-});
-test('missed stone requires retrieval and repeat input cannot spawn more stones', () => {
-  const s = playing(3);
-  throwStone(s, 0.4, -0.4, 0.5);
-  throwStone(s, 0, -0.4, 0.5);
-  assert.equal(s.attempts, 1);
-  frames(s, 700);
-  assert.equal(s.status, 'playing');
-  assert.equal(s.retrieveTime, 0);
-  throwStone(s, 0, -0.4, 0.5);
-  frames(s, 180);
-  assert.equal(s.status, 'won');
-});
-
-test('random sugar opening pauses clock and blocks tracing until reveal completes', () => {
-  for (let shape = 0; shape < 4; shape++) {
-    const s = newRun(1, false, () => (shape + 0.1) / 4);
-    beginRound(s);
-    assert.equal(s.shape, shape);
-    assert.equal(s.status, 'opening');
-    const time = s.time;
-    traceAt(s, 3, 3);
-    frames(s, 100);
-    assert.equal(s.time, time);
-    frames(s, 80);
-    assert.equal(s.status, 'playing');
-  }
-});
 test('bridge preview blocks choices and each safe landing advances once', () => {
   const s = playing(4);
   act(s, 1 - s.bridge[0]);
@@ -197,7 +103,7 @@ test('bridge preview blocks choices and each safe landing advances once', () => 
     act(s, v);
     frames(s, 35);
   }
-  assert.equal(s.progress, 18);
+  assert.equal(s.progress, 10);
   assert.equal(s.status, 'won');
 });
 test('unassisted bridge allows immediate play; wrong pane shatters after landing', () => {
@@ -209,61 +115,6 @@ test('unassisted bridge allows immediate play; wrong pane shatters after landing
   assert.equal(s.status, 'dying');
   assert.equal(s.deathKind, 'fall');
   assert.equal(s.broken, 0);
-});
-test('squid cannot win before neck and entrance; court uses actual polygon', () => {
-  const s = playing(5);
-  s.x = 0;
-  s.z = -21;
-  tick(s, 0.01);
-  assert.notEqual(s.status, 'won');
-  assert.equal(insideSquid(8, -15), false);
-  assert.equal(insideSquid(8, 10), true);
-});
-test('squid neck knockback cannot trap player outside the narrow passage', () => {
-  const s = playing(5);
-  s.x = 0;
-  s.z = 1.95;
-  s.neckEntered = true;
-  s.defenderWindup = 0.01;
-  tick(s, 0.016);
-  assert.ok(s.z <= 2);
-  const z = s.z;
-  frames(s, 15, { z: -1 });
-  assert.ok(s.z < z);
-});
-test('squid correct route walks neck, exterior, entrance, then wins at the head', () => {
-  const s = playing(5);
-  s.opponentStun = 1000;
-  const walk = (x, z, n = 3000) => {
-    let i = 0;
-    while (
-      Math.hypot(s.x - x, s.z - z) > 0.13 &&
-      i++ < n &&
-      s.status === 'playing'
-    ) {
-      const dx = x - s.x,
-        dz = z - s.z,
-        d = Math.hypot(dx, dz);
-      tick(s, 0.016, { x: dx / d, z: dz / d });
-    }
-    assert.ok(i < n, `blocked at ${s.x},${s.z}, ${s.squidStage}`);
-  };
-  walk(12, 0);
-  assert.equal(s.squidStage, 'entrance');
-  walk(12, 26);
-  walk(0, 26);
-  walk(0, 23);
-  assert.equal(s.squidStage, 'attack');
-  walk(0, -21);
-  assert.equal(s.status, 'won');
-});
-test('squid leaving court after entrance eliminates player', () => {
-  const s = playing(5);
-  s.squidStage = 'attack';
-  s.x = 10.1;
-  s.z = 10;
-  tick(s, 0.016);
-  assert.equal(s.status, 'dying');
 });
 test('joystick bounds diagonal speed and suppresses small accidental movement', () => {
   assert.deepEqual(joystickVector(2, 2), { x: 0, z: 0 });
@@ -291,7 +142,7 @@ test('overview camera includes the opening crowd and all bridge panes in portrai
             ]
           : [
               [-3.7, 0, 34],
-              [3.7, 0, -34],
+              [3.7, 0, -2],
             ];
       for (const p of points) {
         const v = new T.Vector3(...p).project(c);

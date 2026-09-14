@@ -1,6 +1,7 @@
 import * as T from 'three';
 import { createCharacter, animateCharacter } from '../game/character.js';
 import { younghee, instancedCrowd, label, cameraPose } from './visuals.js';
+import { replacementRound } from './challenges.js';
 export function createArena(host, state, update, options = () => ({})) {
   const renderer = new T.WebGLRenderer({
     antialias: true,
@@ -238,7 +239,7 @@ export function createArena(host, state, update, options = () => ({})) {
   // A continuous open bridge: no surrounding walls and one stable overview camera.
   const panes = [],
     marks = [];
-  for (let i = 0; i < 18; i++)
+  for (let i = 0; i < 10; i++)
     for (let side = 0; side < 2; side++) {
       const p = box(
         3.4,
@@ -263,9 +264,9 @@ export function createArena(host, state, update, options = () => ({})) {
       glass.add(m);
       marks.push(m);
     }
-  for (const x of [-4, 0, 4]) box(0.13, 1, 77, x, -0.6, 0, '#6c788c', glass);
+  for (const x of [-4, 0, 4]) box(0.13, 1, 43, x, -0.6, 18, '#6c788c', glass);
   box(10, 1, 5, 0, -0.6, 39, '#384457', glass);
-  box(10, 1, 5, 0, -0.6, -39, '#384457', glass);
+  box(10, 1, 5, 0, -0.6, -6, '#384457', glass);
   const stepLabel = label('START', 1.7);
   stepLabel.position.set(0, 0.2, 40);
   glass.add(stepLabel);
@@ -362,6 +363,10 @@ export function createArena(host, state, update, options = () => ({})) {
     update(dt);
     const s = state(),
       opt = options();
+    if (replacementRound(s.round)) {
+      raf = requestAnimationFrame(frame);
+      return;
+    }
     if (!opt.paused) visualTime += dt;
     const dying = s.status === 'dying' || s.status === 'lost';
     field.visible = s.round === 0;

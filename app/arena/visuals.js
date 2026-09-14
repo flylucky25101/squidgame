@@ -144,6 +144,7 @@ export function instancedCrowd(scene, material) {
       for (let i = 0; i < count; i++) {
         const n = s.crowd[i],
           moving =
+            !n.blocker &&
             s.status === 'playing' &&
             s.light === 'green' &&
             n.alive &&
@@ -223,8 +224,8 @@ export function cameraPose(s, aspect, overview = false) {
     };
   if (s.round === 4)
     return {
-      position: [0, aspect < 1 ? 72 : 57, aspect < 1 ? 74 : 61],
-      look: [0, 0, 2],
+      position: [0, aspect < 1 ? 38 : 32, aspect < 1 ? 61 : 53],
+      look: [0, 0, 17],
     };
   if (s.round === 2)
     return {

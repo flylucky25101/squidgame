@@ -1,14 +1,19 @@
 import { swipeVelocity, segmentHitsStone } from './stone.js';
+import {
+  createChallenge,
+  challengeTick,
+  replacementRound,
+} from './challenges.js';
 export const ROUNDS = [
   [
     '무궁화꽃이 피었습니다',
-    '5분 안에 결승선을 넘으세요. 영희가 돌아보면 정지하세요. 군중을 피해 길을 찾으세요.',
+    '5분 안에 결승선으로! 멈춰 선 군중의 빈틈을 좌우로 찾아가세요. 구호 속도는 매번 달라집니다. 영희가 돌아보면 정지!',
     300,
   ],
   [
-    '설탕 뽑기',
-    '상자를 열면 네 가지 중 한 모양이 무작위로 나옵니다. 윤곽을 따라 분리하세요. 설탕이 깨지면 탈락합니다.',
-    600,
+    '짝짓기',
+    '발표된 인원에 맞춰 동료를 선택하세요. 나를 포함해 정확한 인원이 모이면 빈 방으로! 세 번 살아남으세요.',
+    120,
   ],
   [
     '줄다리기',
@@ -16,23 +21,29 @@ export const ROUNDS = [
     180,
   ],
   [
-    '비석치기',
-    '아래에서 위로 스와이프해 돌을 던지세요. 앞에 세운 비석을 넘어뜨리면 통과합니다. 빗나가면 돌을 회수해 다시 던집니다.',
+    '공기놀이',
+    '돌을 던지고, 바닥의 돌을 정해진 개수만큼 집은 뒤 공중의 돌을 받으세요. 다섯 단계에 도전합니다.',
     300,
   ],
   [
-    '징검다리',
-    '18쌍의 유리 중 강화유리를 골라 건너세요. 기억 도움을 켜면 시작할 때 안전 발판을 보여줍니다.',
+    '유리다리',
+    '10쌍의 유리 중 강화유리를 골라 건너세요. 기억 도움으로 안전 발판을 외운 뒤 좌우를 선택하세요.',
     960,
   ],
   [
-    '오징어 게임',
-    '외발로 목을 가로지르면 두 발을 쓸 수 있습니다. 아래 입구로 들어가 머리의 원을 밟으세요. 경계 밖으로 밀려나면 탈락합니다.',
+    '줄넘기',
+    '이동 버튼을 누르며 다리를 건너세요. 회전하는 줄과 중앙의 끊어진 틈은 점프로 넘으세요. PC는 W 이동, SPACE 점프.',
     300,
   ],
 ];
 export const SHAPES = ['동그라미', '세모', '별', '우산'];
 export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const bottlenecks = Array.from({ length: 5 }, (_, row) =>
+  Array.from({ length: 51 }, (_, col) => ({
+    x: -28 + col * 1.12,
+    z: 30 - row * 13,
+  })).filter((p) => Math.abs(p.x - (row % 2 ? 15 : -15)) > 4),
+).flat();
 export const CHANT = [
   '무',
   '궁',
@@ -46,10 +57,15 @@ export const CHANT = [
   '다',
 ];
 export function chantPattern(random) {
-  return CHANT.map(() => 0.24 + random() * 0.43);
+  const pace = 0.12 + random() * 0.25;
+  return CHANT.map(() => pace + random() * 0.16);
 }
 export function beginRound(s) {
   if (s.status !== 'ready') return;
+  if (replacementRound(s.round)) {
+    s.status = 'playing';
+    return;
+  }
   if (s.round === 1) {
     s.shape = Math.min(3, Math.floor(s.random() * 4));
     s.trace = shapePoints(s.shape);
@@ -112,6 +128,7 @@ export function shapePoints(shape) {
 export function newRun(round = 0, practice = false, random = Math.random) {
   return {
     round,
+    challenge: createChallenge(round, random),
     practice,
     status: 'ready',
     time: ROUNDS[round][2],
@@ -133,8 +150,11 @@ export function newRun(round = 0, practice = false, random = Math.random) {
     random,
     crowd: Array.from({ length: 455 }, (_, i) => ({
       id: i + 1,
-      x: ((i % 25) - 12) * 2.25,
-      z: 6 + Math.floor(i / 25) * 1.95,
+      x: bottlenecks[i]?.x ?? ((i % 25) - 12) * 2.25,
+      z:
+        bottlenecks[i]?.z ??
+        34 + Math.floor((i - bottlenecks.length) / 25) * 1.05,
+      blocker: i < bottlenecks.length,
       alive: true,
       finished: false,
       speed: 3.1 + random() * 2.1,
@@ -157,7 +177,7 @@ export function newRun(round = 0, practice = false, random = Math.random) {
     deathTime: 0,
     resultTime: 0,
     deathKind: 'shot',
-    bridge: Array.from({ length: 18 }, () => (random() < 0.5 ? 0 : 1)),
+    bridge: Array.from({ length: 10 }, () => (random() < 0.5 ? 0 : 1)),
     memory: true,
     revealTime: 10,
     jump: null,
@@ -229,7 +249,7 @@ export function crowdStep(s, dt) {
     n.stagger = Math.max(0, n.stagger - dt);
     n.panic = Math.max(0, n.panic - dt);
     if (n.finished) continue;
-    if (moving && !n.stagger) {
+    if (moving && !n.stagger && !n.blocker) {
       n.z -= n.speed * dt;
       n.x = clamp(
         n.x + Math.sin(s.elapsed * 0.8 + n.phase) * dt * 0.55,
@@ -285,7 +305,9 @@ export function crowdStep(s, dt) {
       }
   if (s.elapsed >= s.nextEvent) {
     s.nextEvent = s.elapsed + 6 + s.random() * 5;
-    const candidates = s.crowd.filter((n) => n.alive && !n.finished);
+    const candidates = s.crowd.filter(
+      (n) => n.alive && !n.finished && !n.blocker,
+    );
     if (candidates.length) {
       const n = candidates[Math.floor(s.random() * candidates.length)];
       n.panic = 2;
@@ -437,6 +459,10 @@ export function tick(s, dt, input = {}) {
       '제한 시간이 끝났습니다.',
       s.round === 4 ? 'fall' : 'shot',
     );
+  if (replacementRound(s.round)) {
+    challengeTick(s, dt, input);
+    return;
+  }
   if (s.round === 0) {
     if (s.light === 'green') {
       s.chantTime += dt;
@@ -487,6 +513,14 @@ export function tick(s, dt, input = {}) {
     s.z += z * speed * dt;
     if (s.round === 0) {
       crowdStep(s, dt);
+      for (let row = 0; row < 5; row++) {
+        const edge = 31 - row * 13,
+          gap = row % 2 ? 15 : -15;
+        if (previous.z >= edge && s.z < edge && Math.abs(s.x - gap) > 3.2) {
+          s.z = edge;
+          if (Math.abs(x) < 0.01) s.x = previous.x;
+        }
+      }
       s.x = clamp(s.x, -28.5, 28.5);
       s.z = Math.min(46, s.z);
       if (s.z < -33) finish(s, true, '결승선을 통과했습니다.');
@@ -515,7 +549,7 @@ export function tick(s, dt, input = {}) {
       } else {
         s.progress++;
         if (s.progress === s.bridge.length)
-          finish(s, true, '18쌍의 유리다리를 모두 건넜습니다.');
+          finish(s, true, '10쌍의 유리다리를 모두 건넜습니다.');
       }
     }
   }

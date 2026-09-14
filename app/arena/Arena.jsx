@@ -16,6 +16,8 @@ import {
 import { createArena } from './scene.js';
 import { createAudio } from './audio.js';
 import './arena.css';
+import Challenges from './Challenges.jsx';
+import { challengeAction, replacementRound } from './challenges.js';
 
 function StoneSwipe({ s, onThrow }) {
   const gesture = useRef(null),
@@ -339,6 +341,7 @@ export default function Arena() {
   const mount = useRef(null),
     run = useRef(null);
   if (!run.current) run.current = newRun();
+  const forward = useRef(false);
   const keys = useRef({}),
     move = useRef({ x: 0, z: 0 }),
     audio = useRef(null),
@@ -346,13 +349,17 @@ export default function Arena() {
   const [s, setS] = useState(() => ({ ...run.current })),
     [paused, setPaused] = useState(false),
     [muted, setMuted] = useState(false),
-    [musicVolume, setMusicVolume] = useState(0.65),
+    [musicVolume, setMusicVolume] = useState(0.8),
+    [soundStatus, setSoundStatus] = useState(
+      '경기 시작 또는 소리 확인을 누르면 음악이 활성화됩니다.',
+    ),
     [quality, setQuality] = useState('auto'),
     [overview, setOverview] = useState(false),
     [error, setError] = useState(''),
     [reset, setReset] = useState(0);
   const clearInput = () => {
     keys.current = {};
+    forward.current = false;
     move.current = { x: 0, z: 0 };
     setReset((v) => v + 1);
   };
@@ -400,6 +407,7 @@ export default function Arena() {
           if (!options.current.paused) {
             const k = keys.current;
             tick(r, dt, {
+              forward: forward.current || k.w || k.arrowup,
               x:
                 move.current.x +
                 (k.d || k.arrowright ? 1 : 0) -
@@ -456,9 +464,8 @@ export default function Arena() {
       keys.current[k] = true;
       if (e.code === 'Space' && !e.repeat) {
         const r = run.current;
-        if (r.round === 5) act(r, 'push');
+        if (r.round === 5) challengeAction(r, 'jump');
         else if (r.round === 2) act(r, 0);
-        else if (r.round === 3) keys.current.throwStart = performance.now();
       }
       if (run.current.round === 4 && !e.repeat) {
         if (k === 'q') act(run.current, 0);
@@ -516,6 +523,21 @@ export default function Arena() {
     <main className={`arena round-${s.round} ${dying ? 'is-dying' : ''}`}>
       <div className="arena-world" ref={mount} />
       <div className="arena-vignette" />
+      <button
+        className="sound-check"
+        onClick={async () => {
+          audio.current?.mute(false);
+          setMuted(false);
+          const status = await audio.current?.unlock();
+          audio.current?.play('ready');
+          setSoundStatus(status);
+        }}
+      >
+        ♪ 소리 확인
+      </button>
+      {isPlaying && !replacementRound(s.round) && (
+        <div className="play-instructions">{ROUNDS[s.round][1]}</div>
+      )}
       <header className="arena-header">
         <a href="./" className="arena-brand">
           ○ △ □ <span>THE ISLAND</span>
@@ -590,12 +612,14 @@ export default function Arena() {
               </div>
             </>
           )}
-          {s.round === 1 && (
-            <Sugar
+          {replacementRound(s.round) && (
+            <Challenges
               s={s}
-              onTrace={(x, y) => {
-                if (!options.current.paused) traceAt(run.current, x, y);
+              onAction={(a, v) => {
+                challengeAction(run.current, a, v);
+                setS({ ...run.current });
               }}
+              onForward={(v) => (forward.current = v)}
             />
           )}
           {s.round === 2 && (
@@ -616,14 +640,6 @@ export default function Arena() {
               <p>{s.message || '표시가 밝은 중앙에 들어올 때 당기세요.'}</p>
             </section>
           )}
-          {s.round === 3 && (
-            <StoneSwipe
-              s={s}
-              onThrow={(dx, dy, t) => {
-                if (!options.current.paused) throwStone(run.current, dx, dy, t);
-              }}
-            />
-          )}
           {s.round === 4 && (
             <>
               <div className="bridge-instruction">
@@ -637,7 +653,7 @@ export default function Arena() {
                   </>
                 ) : (
                   <>
-                    <strong>{s.progress} / 18 칸 통과</strong>
+                    <strong>{s.progress} / 10 칸 통과</strong>
                     <span>
                       {s.memory
                         ? '기억 도움 켜짐'
@@ -693,54 +709,7 @@ export default function Arena() {
               </section>
             </>
           )}
-          {s.round === 5 && (
-            <>
-              <div className="squid-objective">
-                <strong>{stageText}</strong>
-                <span>
-                  {s.squidStage === 'neck'
-                    ? '외발 이동 · 목의 금색 통로를 건너세요'
-                    : s.squidStage === 'entrance'
-                      ? '두 발 이동 · 오른쪽 바깥으로 돌아가세요'
-                      : '밀치기 준비 표시가 뜨면 옆으로 피하세요'}
-                </span>
-                <progress value={s.stamina} max="1" />
-              </div>
-              <svg
-                className="squid-minimap"
-                viewBox="-18 -28 36 60"
-                aria-label="오징어 경기장 전체 지도"
-              >
-                <path
-                  d="M-10 24V0L0 -20 10 0V24H3M-10 24H-3"
-                  fill="none"
-                  stroke="#ffe9a5"
-                  strokeWidth=".7"
-                />
-                <circle
-                  cx="0"
-                  cy="-21"
-                  r="3"
-                  fill="none"
-                  stroke="#ffe9a5"
-                  strokeWidth=".7"
-                />
-                <path
-                  d="M-12 -2H12M-12 2H12"
-                  stroke="#d39b68"
-                  strokeWidth=".4"
-                />
-                <circle cx={s.x} cy={s.z} r="1.4" fill="#ffff94" />
-                <circle
-                  cx={s.opponentX}
-                  cy={s.opponentZ}
-                  r="1.2"
-                  fill="#ff6486"
-                />
-              </svg>
-            </>
-          )}
-          {(s.round === 0 || s.round === 5) && (
+          {s.round === 0 && (
             <>
               <div className="arena-controls">
                 <Joystick onMove={(v) => (move.current = v)} reset={reset} />
@@ -858,30 +827,10 @@ export default function Arena() {
                     audio.current?.musicVolume(value);
                   }}
                 />
-                <small>0%로 내리면 효과음만 들립니다.</small>
+                <small role="status">
+                  {soundStatus} · 0%에서는 음악만 꺼집니다.
+                </small>
               </label>
-            )}
-            {s.status === 'ready' && !paused && s.round === 1 && (
-              <div className="shape-choice">
-                {SHAPES.map((name, i) => (
-                  <div key={name} className="shape-preview">
-                    <svg viewBox="0 0 300 300" aria-hidden="true">
-                      <path
-                        d={shapePoints(i)
-                          .map((p, j) => `${j ? 'L' : 'M'}${p[0]} ${p[1]}`)
-                          .join(' ')}
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="9"
-                      />
-                    </svg>
-                    {name}
-                    <small>
-                      {['쉬움', '보통', '어려움', '매우 어려움'][i]}
-                    </small>
-                  </div>
-                ))}
-              </div>
             )}
             {s.status === 'ready' && !paused && s.round === 4 && (
               <label className="memory-toggle">
@@ -901,13 +850,6 @@ export default function Arena() {
                   </small>
                 </span>
               </label>
-            )}
-            {s.status === 'ready' && !paused && s.round === 5 && (
-              <ol className="squid-steps">
-                <li>왼쪽에서 목을 횡단해 두 발 이동 획득</li>
-                <li>바깥을 돌아 아래 입구로 진입</li>
-                <li>수비수를 밀치거나 피해 머리의 원을 밟기</li>
-              </ol>
             )}
             {!error &&
               (paused ? (
@@ -939,7 +881,7 @@ export default function Arena() {
                     setS({ ...run.current });
                   }}
                 >
-                  {s.round === 1 ? '랜덤 상자 열기 →' : '경기 시작 →'}
+                  경기 시작 →
                 </button>
               ) : s.status === 'won' && s.round < 5 && !s.practice ? (
                 <button
@@ -993,7 +935,7 @@ export default function Arena() {
                     6경기 연속 도전
                   </button>
                   <br />
-                  시즌 1·2 기반 싱글플레이 각색 / v5
+                  시즌 1·2 기반 싱글플레이 각색 / v6
                 </p>
               </>
             )}
