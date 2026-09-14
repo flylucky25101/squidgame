@@ -490,6 +490,24 @@
   margin: 14px 0;
   font-size: 14px;
 }
+.music-setting select {
+  background: #19373d;
+  color: #fff;
+  border: 1px solid #638088;
+  padding: 8px;
+  border-radius: 5px;
+}
+.round-5 .arena-announcement {
+  top: auto;
+  bottom: 160px;
+  max-width: 70%;
+  font-size: 14px;
+}
+.sugar-task progress {
+  width: 100%;
+  height: 8px;
+  accent-color: #e65d89;
+}
 .music-setting input {
   flex: 1;
   min-width: 100px;

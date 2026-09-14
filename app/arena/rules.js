@@ -124,6 +124,8 @@ export function newRun(round = 0, practice = false, random = Math.random) {
     shape: 0,
     trace: shapePoints(0),
     damage: 0,
+    scratchAt: -10,
+    traceHint: '',
     force: 0.5,
     lastAction: -10,
     message: '',
@@ -315,9 +317,10 @@ export function crowdStep(s, dt) {
   }
 }
 export function insideSquid(x, z) {
+  if (Math.hypot(x, z + 21) <= 3) return true;
   if (z >= 0 && z <= 24) return Math.abs(x) <= 10;
   if (z < 0 && z >= -20) return Math.abs(x) <= (10 * (z + 20)) / 20;
-  return Math.hypot(x, z + 21) <= 3;
+  return false;
 }
 export function squidStep(s, dt, previous) {
   s.stamina = Math.min(1, s.stamina + dt * 0.28);
@@ -396,9 +399,12 @@ export function squidStep(s, dt, previous) {
     }
   }
   // Body contact slows an escape; contestants cannot pass through one another.
-  if (s.squidStage === 'attack' && d < 1.15 && !s.opponentStun) {
-    const ux = d > 0.001 ? dx / d : 1,
-      uz = d > 0.001 ? dz / d : 0;
+  const contactX = s.x - s.opponentX,
+    contactZ = s.z - s.opponentZ;
+  const contactDistance = Math.hypot(contactX, contactZ);
+  if (s.squidStage === 'attack' && contactDistance < 1.15 && !s.opponentStun) {
+    const ux = contactDistance > 0.001 ? contactX / contactDistance : 1,
+      uz = contactDistance > 0.001 ? contactZ / contactDistance : 0;
     s.x = s.opponentX + ux * 1.15;
     s.z = s.opponentZ + uz * 1.15;
     if (!insideSquid(s.x, s.z))
@@ -532,6 +538,7 @@ export function traceAt(s, x, y) {
     }
   }
   if (best <= 10) {
+    s.traceHint = '';
     s.progress = nearest + 1;
     s.damage = Math.max(0, s.damage - 0.02);
     if (s.progress >= s.trace.length)
@@ -539,6 +546,11 @@ export function traceAt(s, x, y) {
   } else {
     const previous = s.trace[Math.max(0, s.progress - 1)];
     if (Math.hypot(x - previous[0], y - previous[1]) < 13) return;
+    s.traceHint =
+      '밝은 점으로 돌아와 이어서 긁으세요. 손을 떼고 다시 시작해도 됩니다.';
+    // One long pointer move must not count as dozens of simultaneous mistakes.
+    if (s.elapsed - s.scratchAt < 0.65) return;
+    s.scratchAt = s.elapsed;
     s.damage += 0.34;
     if (s.damage >= 1) finish(s, false, '윤곽 밖을 긁어 설탕이 깨졌습니다.');
   }
@@ -553,7 +565,10 @@ export function throwStone(s, dx, dy, seconds) {
   )
     return;
   const v = swipeVelocity(dx, dy, seconds);
-  if (!v) return;
+  if (!v) {
+    announce(s, '아래에서 위로 조금 더 길게 드래그하세요.', 'miss');
+    return;
+  }
   s.stone = { x: 0, y: 1.2, z: 8, ...v, active: true };
   s.attempts++;
   s.throwAt = s.elapsed;
@@ -651,10 +666,16 @@ export function act(s, value) {
       if (!insideSquid(s.opponentX, s.opponentZ) && s.squidStage === 'attack')
         finish(s, true, '수비수를 경기장 밖으로 밀어냈습니다.');
       else {
-        s.opponentX = clamp(s.opponentX, -9, 9);
-        s.opponentZ = clamp(s.opponentZ, 0, 23);
-        announce(s, '수비수가 균형을 잃었습니다.', 'shove');
+        if (s.squidStage !== 'attack') {
+          s.opponentX = clamp(s.opponentX, -9, 9);
+          s.opponentZ = clamp(s.opponentZ, 0, 23);
+        }
+        announce(
+          s,
+          '수비수가 균형을 잃었습니다. 옆으로 돌아 돌파하세요.',
+          'shove',
+        );
       }
-    }
+    } else announce(s, '수비수가 멉니다. 가까이 다가온 뒤 밀치세요.', 'miss');
   }
 }

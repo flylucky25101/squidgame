@@ -252,6 +252,7 @@ function Sugar({ s, onTrace }) {
         aria-label="달고나 윤곽 따라 긁기"
         onPointerDown={(e) => {
           e.preventDefault();
+          if (pointer.current !== null) return;
           pointer.current = e.pointerId;
           previous.current = null;
           e.currentTarget.setPointerCapture(e.pointerId);
@@ -322,10 +323,13 @@ function Sugar({ s, onTrace }) {
           />
         )}
       </svg>
-      <p>밝은 점에서 시작해 선을 따라 천천히 드래그하세요.</p>
+      <p role="status">
+        {s.traceHint ||
+          '밝은 점에서 시작하세요. 손을 떼었다가 이어서 긁어도 됩니다.'}
+      </p>
       <div className="sugar-stress">
         <span>표면 손상</span>
-        <progress value={s.damage} max="1" />
+        <progress aria-label="달고나 손상도" value={s.damage} max="1" />
       </div>
     </section>
   );
@@ -338,11 +342,12 @@ export default function Arena() {
   const keys = useRef({}),
     move = useRef({ x: 0, z: 0 }),
     audio = useRef(null),
-    options = useRef({ paused: false, overview: false });
+    options = useRef({ paused: false, overview: false, quality: 'auto' });
   const [s, setS] = useState(() => ({ ...run.current })),
     [paused, setPaused] = useState(false),
     [muted, setMuted] = useState(false),
     [musicVolume, setMusicVolume] = useState(0.65),
+    [quality, setQuality] = useState('auto'),
     [overview, setOverview] = useState(false),
     [error, setError] = useState(''),
     [reset, setReset] = useState(0);
@@ -757,11 +762,13 @@ export default function Arena() {
               )}
             </>
           )}
-          {s.message && s.messageUntil > s.elapsed && s.round === 0 && (
-            <div className="arena-announcement" role="status">
-              {s.message}
-            </div>
-          )}
+          {s.message &&
+            s.messageUntil > s.elapsed &&
+            (s.round === 0 || s.round === 5) && (
+              <div className="arena-announcement" role="status">
+                {s.message}
+              </div>
+            )}
         </>
       )}
       {s.status === 'opening' && !paused && <SugarBox s={s} />}
@@ -817,6 +824,26 @@ export default function Arena() {
             </p>
             {(paused || s.status === 'ready') && (
               <label className="music-setting">
+                <span>화면 품질</span>
+                <select
+                  aria-label="화면 품질"
+                  value={quality}
+                  onChange={(e) => {
+                    setQuality(e.target.value);
+                    options.current.quality = e.target.value;
+                  }}
+                >
+                  <option value="auto">자동</option>
+                  <option value="low">절전</option>
+                  <option value="high">높음</option>
+                </select>
+                <small>
+                  자동은 작은 화면·느린 프레임에서 그림자와 해상도를 낮춥니다.
+                </small>
+              </label>
+            )}
+            {(paused || s.status === 'ready') && (
+              <label className="music-setting">
                 <span>배경음악 {Math.round(musicVolume * 100)}%</span>
                 <input
                   aria-label="배경음악 음량"
@@ -868,7 +895,10 @@ export default function Arena() {
                 />
                 <span>
                   기억 도움 사용
-                  <small>안전 발판 10초 공개 · 원작에는 없는 보조 기능</small>
+                  <small>
+                    안전 발판 10초 공개 · 원작에는 없는 보조 기능. 끄면 단서나
+                    선행 NPC 없이 운으로 선택합니다.
+                  </small>
                 </span>
               </label>
             )}
@@ -918,6 +948,24 @@ export default function Arena() {
                 >
                   다음 경기 →
                 </button>
+              ) : s.status === 'lost' && !s.practice ? (
+                <>
+                  <button
+                    className="arena-primary"
+                    onClick={() => start(s.round, false)}
+                  >
+                    이 경기부터 재도전 →
+                  </button>
+                  <button
+                    className="arena-secondary"
+                    onClick={() => start(0, false)}
+                  >
+                    1경기부터 새 도전
+                  </button>
+                  <p className="arena-footnote">
+                    재도전하면 이 경기의 배치와 모양은 새로 정해집니다.
+                  </p>
+                </>
               ) : (
                 <button
                   className="arena-primary"
@@ -945,7 +993,7 @@ export default function Arena() {
                     6경기 연속 도전
                   </button>
                   <br />
-                  시즌 1·2 기반 싱글플레이 각색 / v4
+                  시즌 1·2 기반 싱글플레이 각색 / v5
                 </p>
               </>
             )}

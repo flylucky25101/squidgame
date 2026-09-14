@@ -93,9 +93,51 @@ test('all four sugar shapes have distinct traces and can be completed', () => {
 });
 test('sugar cannot skip to a far endpoint and scratching breaks it', () => {
   const s = playing(1);
-  for (let i = 0; i < 3; i++) traceAt(s, 3, 3);
+  for (let i = 0; i < 3; i++) {
+    s.elapsed = i * 0.7;
+    traceAt(s, 3, 3);
+  }
   assert.equal(s.status, 'dying');
   assert.equal(s.progress, 0);
+});
+
+test('a single drag burst warns once rather than instantly breaking sugar', () => {
+  const s = playing(1);
+  for (let i = 0; i < 100; i++) traceAt(s, 3, 3);
+  assert.equal(s.status, 'playing');
+  assert.equal(s.damage, 0.34);
+  assert.match(s.traceHint, /밝은 점/);
+  traceAt(s, ...s.trace[0]);
+  assert.equal(s.traceHint, '');
+});
+
+test('squid head overlaps the triangle and shove preserves defender position near head', () => {
+  assert.equal(insideSquid(1.5, -19), true);
+  const s = playing(5);
+  s.squidStage = 'attack';
+  s.x = 0;
+  s.z = -10;
+  s.opponentX = 0;
+  s.opponentZ = -12;
+  act(s, 'push');
+  assert.equal(s.opponentZ, -13.5);
+  assert.equal(s.status, 'playing');
+});
+
+test('squid defender can be interrupted and bypassed during its stun', () => {
+  const s = playing(5);
+  s.squidStage = 'attack';
+  s.x = 0;
+  s.z = 12;
+  s.opponentX = 0;
+  s.opponentZ = 10;
+  s.defenderWindup = 0.2;
+  act(s, 'push');
+  assert.equal(s.defenderWindup, 0);
+  frames(s, 40, { x: 1, z: -1 });
+  assert.ok(s.x > 1.4);
+  assert.ok(s.z < 10.6);
+  assert.equal(s.status, 'playing');
 });
 test('rope rewards timing and ignores instant repeat taps', () => {
   const s = playing(2);

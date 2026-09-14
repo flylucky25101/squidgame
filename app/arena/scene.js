@@ -322,6 +322,9 @@ export function createArena(host, state, update, options = () => ({})) {
     chips.push(chip);
   }
   let raf,
+    quality = '',
+    slowFrames = 0,
+    autoLow = false,
     last = performance.now(),
     visualTime = 0,
     previousRun = null;
@@ -334,6 +337,26 @@ export function createArena(host, state, update, options = () => ({})) {
   observer.observe(host);
   resize();
   function frame(now) {
+    if (document.hidden) {
+      last = now;
+      raf = requestAnimationFrame(frame);
+      return;
+    }
+    const requested = options().quality || 'auto';
+    if (requested === 'auto' && now - last > 32 && now - last < 150)
+      slowFrames++;
+    else slowFrames = Math.max(0, slowFrames - 0.2);
+    if (slowFrames > 90) autoLow = true;
+    const low =
+      requested === 'low' ||
+      (requested === 'auto' && (autoLow || window.innerWidth < 750));
+    const nextQuality = low ? 'low' : 'high';
+    if (quality !== nextQuality) {
+      quality = nextQuality;
+      renderer.setPixelRatio(low ? 1 : Math.min(devicePixelRatio, 1.5));
+      renderer.shadowMap.enabled = !low;
+      resize();
+    }
     const dt = Math.min((now - last) / 1000, 0.05);
     last = now;
     update(dt);
