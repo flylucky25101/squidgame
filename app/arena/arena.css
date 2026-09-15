@@ -1901,3 +1901,183 @@
     top: 169px;
   }
 }
+.round-1 .arena-world,
+.round-3 .arena-world,
+.round-5 .arena-world {
+  visibility: visible;
+  inset: 0 !important;
+}
+.adventure-hud {
+  position: absolute;
+  top: 110px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(590px, 65vw);
+  z-index: 6;
+  text-align: center;
+  background: linear-gradient(120deg, #0b2034ed, #16372dd9);
+  border: 1px solid #809d9755;
+  border-radius: 12px;
+  padding: 8px 16px;
+  box-shadow: 0 10px 40px #0005;
+  pointer-events: none;
+}
+.adventure-tag {
+  font-size: 11px;
+  letter-spacing: 3px;
+  color: #dabf80;
+}
+.adventure-hud h2 {
+  font-size: 18px;
+  margin: 3px 0;
+  color: #f7f0d8;
+}
+.adventure-hud p {
+  font-size: 12px;
+  line-height: 1.4;
+  margin: 4px 0;
+  color: #d9e9e9;
+}
+.adventure-meters {
+  display: flex;
+  justify-content: space-around;
+  gap: 12px;
+  padding-top: 9px;
+  color: #f0d98c;
+  font-size: 14px;
+  border-top: 1px solid #ffffff22;
+}
+.adventure-hud progress {
+  width: 100%;
+  height: 5px;
+  accent-color: #5de1b3;
+}
+.adventure-primary {
+  position: absolute;
+  z-index: 9;
+  right: 35px;
+  bottom: 75px;
+  width: 150px;
+  min-height: 82px;
+  border: 1px solid #f7d48d;
+  border-radius: 14px;
+  background: linear-gradient(145deg, #b77538, #705535);
+  color: #fff6d9;
+  font-size: 22px;
+  font-weight: bold;
+  box-shadow: 0 10px 35px #0007;
+  touch-action: none;
+}
+.adventure-primary small {
+  display: block;
+  font-size: 11px;
+  margin-top: 6px;
+  font-weight: normal;
+}
+.adventure-map {
+  position: absolute;
+  right: 22px;
+  top: 245px;
+  width: 125px;
+  background: #07131bcc;
+  border: 1px solid #91aca077;
+  border-radius: 7px;
+  padding: 7px;
+  z-index: 5;
+}
+.adventure-map svg {
+  display: block;
+  width: 100%;
+  height: 170px;
+}
+.adventure-map span {
+  font-size: 10px;
+  color: #e6d9af;
+  display: block;
+  text-align: center;
+}
+.round-1 .arena-controls,
+.round-3 .arena-controls,
+.round-5 .arena-controls {
+  bottom: 70px;
+}
+.round-1 .arena-round p,
+.round-3 .arena-round p,
+.round-5 .arena-round p {
+  display: none;
+}
+@media (max-width: 750px) {
+  .adventure-hud {
+    top: 143px;
+    width: 92vw;
+    padding: 10px;
+  }
+  .adventure-hud h2 {
+    font-size: 18px;
+    margin: 4px;
+  }
+  .adventure-hud p {
+    font-size: 12px;
+  }
+  .adventure-tag {
+    font-size: 9px;
+  }
+  .adventure-meters {
+    font-size: 12px;
+    gap: 5px;
+  }
+  .adventure-primary {
+    right: 18px;
+    bottom: 83px;
+    width: 122px;
+    min-height: 77px;
+    font-size: 20px;
+  }
+  .adventure-map {
+    top: 305px;
+    width: 84px;
+    right: 10px;
+  }
+  .adventure-map svg {
+    height: 110px;
+  }
+  .adventure-map span {
+    font-size: 8px;
+  }
+}
+@media (max-height: 520px) {
+  .adventure-hud {
+    top: 95px;
+    width: 53vw;
+    padding: 7px;
+  }
+  .adventure-hud h2 {
+    font-size: 16px;
+    margin: 2px;
+  }
+  .adventure-hud p {
+    font-size: 11px;
+    margin: 3px;
+  }
+  .adventure-tag {
+    display: none;
+  }
+  .adventure-meters {
+    font-size: 11px;
+    padding-top: 3px;
+  }
+  .adventure-primary {
+    right: 20px;
+    bottom: 35px;
+    width: 120px;
+    min-height: 65px;
+  }
+  .adventure-map {
+    top: 160px;
+    right: 20px;
+    width: 75px;
+  }
+  .adventure-map svg {
+    height: 88px;
+  }
+}

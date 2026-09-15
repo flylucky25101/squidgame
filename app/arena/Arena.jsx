@@ -408,6 +408,7 @@ export default function Arena() {
             const k = keys.current;
             tick(r, dt, {
               forward: forward.current || k.w || k.arrowup,
+              sprint: k.shift,
               x:
                 move.current.x +
                 (k.d || k.arrowright ? 1 : 0) -
@@ -464,7 +465,7 @@ export default function Arena() {
       keys.current[k] = true;
       if (e.code === 'Space' && !e.repeat) {
         const r = run.current;
-        if (r.round === 5) challengeAction(r, 'jump');
+        if (replacementRound(r.round)) challengeAction(r, 'primary');
         else if (r.round === 2) act(r, 0);
       }
       if (run.current.round === 4 && !e.repeat) {
@@ -709,26 +710,18 @@ export default function Arena() {
               </section>
             </>
           )}
-          {s.round === 0 && (
+          {(s.round === 0 || replacementRound(s.round)) && (
             <>
               <div className="arena-controls">
                 <Joystick onMove={(v) => (move.current = v)} reset={reset} />
                 <span>
                   WASD / 방향키
                   <br />
-                  스틱을 놓으면 정지
+                  {s.round === 5
+                    ? '좌우 조향 · 아래로 감속'
+                    : '스틱을 놓으면 정지'}
                 </span>
               </div>
-              {s.round === 5 && (
-                <button
-                  className="arena-push"
-                  disabled={s.stamina < 0.45}
-                  onClick={() => action('push')}
-                >
-                  밀치기
-                  <small>SPACE</small>
-                </button>
-              )}
             </>
           )}
           {s.message &&
@@ -746,7 +739,9 @@ export default function Arena() {
           <span>움직임 감지 / ELIMINATION</span>
           <strong>
             {s.deathKind === 'fall'
-              ? '유리가 깨졌습니다'
+              ? s.round === 4
+                ? '유리가 깨졌습니다'
+                : '발판에서 추락했습니다'
               : s.deathKind === 'tug'
                 ? '줄을 놓쳤습니다'
                 : '참가자 456 탈락'}
@@ -935,7 +930,7 @@ export default function Arena() {
                     6경기 연속 도전
                   </button>
                   <br />
-                  시즌 1·2 기반 싱글플레이 각색 / v6
+                  오리지널 탈출 경기 + 생존 경기 각색 / v7
                 </p>
               </>
             )}

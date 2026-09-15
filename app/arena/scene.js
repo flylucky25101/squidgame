@@ -2,6 +2,7 @@ import * as T from 'three';
 import { createCharacter, animateCharacter } from '../game/character.js';
 import { younghee, instancedCrowd, label, cameraPose } from './visuals.js';
 import { replacementRound } from './challenges.js';
+import { createAdventureScene } from './adventure-scene.js';
 export function createArena(host, state, update, options = () => ({})) {
   const renderer = new T.WebGLRenderer({
     antialias: true,
@@ -14,6 +15,7 @@ export function createArena(host, state, update, options = () => ({})) {
   host.appendChild(renderer.domElement);
   renderer.domElement.setAttribute('aria-label', '3D 생존 경기장');
   const scene = new T.Scene();
+  const adventure = createAdventureScene();
   scene.background = new T.Color('#719aa6');
   scene.fog = new T.Fog('#719aa6', 110, 245);
   const camera = new T.PerspectiveCamera(53, 1, 0.1, 350),
@@ -364,6 +366,7 @@ export function createArena(host, state, update, options = () => ({})) {
     const s = state(),
       opt = options();
     if (replacementRound(s.round)) {
+      adventure.render(s, camera, renderer, dt);
       raf = requestAnimationFrame(frame);
       return;
     }
@@ -606,6 +609,7 @@ export function createArena(host, state, update, options = () => ({})) {
   }
   raf = requestAnimationFrame(frame);
   return () => {
+    adventure.dispose();
     cancelAnimationFrame(raf);
     observer.disconnect();
     const geometries = new Set(),

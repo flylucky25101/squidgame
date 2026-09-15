@@ -130,15 +130,19 @@ export function tensionFor(s) {
     s.round === 2
       ? Math.max(0, (0.5 - s.force) * 2)
       : s.round === 4
-        ? s.progress / 18
+        ? s.progress / 10
         : s.round === 5
-          ? Math.max(
-              0,
-              1 - Math.hypot(s.x - s.opponentX, s.z - s.opponentZ) / 8,
-            )
-          : s.round === 3 && s.stone?.active
-            ? 0.75
-            : 0;
+          ? s.challenge?.kind === 'chase'
+            ? Math.max(0, 1 - s.challenge.pursuit / 40)
+            : Math.max(
+                0,
+                1 - Math.hypot(s.x - s.opponentX, s.z - s.opponentZ) / 8,
+              )
+          : s.challenge?.kind === 'blackout'
+            ? Math.max(...s.challenge.hunters.map((h) => h.alert))
+            : s.round === 3 && s.challenge?.y > 0
+              ? 0.75
+              : 0;
   return Math.min(1, Math.max(clock, danger));
 }
 
