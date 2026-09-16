@@ -1,30 +1,30 @@
 // Original adaptive scores, synthesized locally without downloading music files.
 export const SCORES = [
   {
-    name: '멈춘 놀이터',
-    bpm: 86,
-    root: 50,
+    name: '숨을 멈춘 운동장',
+    bpm: 72,
+    root: 38,
     melody: [
       12,
       null,
+      null,
+      null,
       19,
       null,
-      13,
-      null,
-      7,
-      null,
-      12,
       15,
       null,
+      12,
+      null,
+      null,
+      null,
       13,
+      null,
       7,
       null,
-      1,
-      null,
     ],
-    chords: [0, -1, -5, -1],
-    pulse: 4,
-    tone: 'bell',
+    chords: [0, -5, -1, -5],
+    pulse: 8,
+    tone: 'string',
   },
   {
     name: '회전목마의 초침',
@@ -183,20 +183,20 @@ export function createMusic(ctx) {
       chain.forEach((n) => n.disconnect());
     };
   }
-  function note(midi, time, duration, level, kind = 'pluck') {
+  function note(midi, time, duration, level, kind = 'pluck', layer = false) {
     const o = ctx.createOscillator(),
       gain = ctx.createGain(),
       filter = ctx.createBiquadFilter();
     o.type =
       kind === 'string' ? 'sawtooth' : kind === 'pad' ? 'triangle' : 'sine';
-    o.frequency.value = hz(midi);
+    o.frequency.value = hz(midi) * (layer ? 1.003 : 1);
     filter.type = 'lowpass';
     filter.frequency.value =
-      kind === 'string' ? 1100 : kind === 'pad' ? 550 : 4200;
+      kind === 'string' ? 850 : kind === 'pad' ? 550 : 4200;
     gain.gain.setValueAtTime(0.0001, time);
     gain.gain.exponentialRampToValueAtTime(
       level,
-      time + (kind === 'pad' ? 0.2 : 0.012),
+      time + (kind === 'pad' ? 0.35 : kind === 'string' ? 0.12 : 0.012),
     );
     gain.gain.exponentialRampToValueAtTime(0.0001, time + duration);
     o.connect(filter);
@@ -205,6 +205,8 @@ export function createMusic(ctx) {
     own(o, [gain, filter]);
     o.start(time);
     o.stop(time + duration + 0.02);
+    if (!layer && (kind === 'string' || kind === 'pad'))
+      note(midi, time + 0.009, duration, level * 0.35, kind, true);
     if (kind === 'bell')
       note(midi + 19, time, duration * 0.45, level * 0.22, 'pluck');
   }
@@ -294,8 +296,8 @@ export function createMusic(ctx) {
     const duck =
       s.round === 0
         ? s.light === 'green'
-          ? 0.55
-          : 0.75
+          ? 0.32
+          : 0.6
         : s.status === 'opening'
           ? 0.5
           : 1;
@@ -316,7 +318,7 @@ export function createMusic(ctx) {
         note(
           root + m + (bar % 8 === 7 ? 12 : 0),
           next,
-          beat * (score.tone === 'bell' ? 2.8 : 0.8),
+          beat * (score.tone === 'bell' ? 2.8 : s.round === 0 ? 2.4 : 0.8),
           0.065,
           score.tone,
         );
@@ -327,8 +329,8 @@ export function createMusic(ctx) {
       if (s.round === 1 || s.round === 3 || s.round === 2 || s.round === 5) {
         if (i % 2 === 1) tickSound(next, 0.018 + danger * 0.022);
       }
-      if (danger > 0.4 && i % 4 === 2) drum(next);
-      if (danger > 0.7 && i % 2 === 0)
+      if (s.round !== 0 && danger > 0.4 && i % 4 === 2) drum(next);
+      if (s.round !== 0 && danger > 0.7 && i % 2 === 0)
         note(root + 19, next, beat * 0.35, 0.035, 'string');
       next += beat / 2;
       step++;

@@ -1,4 +1,5 @@
 import { swipeVelocity, segmentHitsStone } from './stone.js';
+import { CHANT_RECORDINGS } from './chant.js';
 import {
   createChallenge,
   challengeTick,
@@ -7,7 +8,7 @@ import {
 export const ROUNDS = [
   [
     '무궁화꽃이 피었습니다',
-    '5분 안에 결승선으로! 멈춰 선 군중의 빈틈을 좌우로 찾아가세요. 구호 속도는 매번 달라집니다. 영희가 돌아보면 정지!',
+    '5분 안에 결승선으로! 모두 같은 출발선 뒤에서 시작합니다. 구호 속도는 매번 달라집니다. 영희가 돌아보면 정지!',
     300,
   ],
   [
@@ -38,12 +39,6 @@ export const ROUNDS = [
 ];
 export const SHAPES = ['동그라미', '세모', '별', '우산'];
 export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-const bottlenecks = Array.from({ length: 5 }, (_, row) =>
-  Array.from({ length: 51 }, (_, col) => ({
-    x: -28 + col * 1.12,
-    z: 30 - row * 13,
-  })).filter((p) => Math.abs(p.x - (row % 2 ? 15 : -15)) > 4),
-).flat();
 export const CHANT = [
   '무',
   '궁',
@@ -57,8 +52,8 @@ export const CHANT = [
   '다',
 ];
 export function chantPattern(random) {
-  const pace = 0.12 + random() * 0.25;
-  return CHANT.map(() => pace + random() * 0.16);
+  const clip = CHANT_RECORDINGS[Math.min(3, Math.floor(random() * 4))];
+  return CHANT.map(() => clip.duration / CHANT.length);
 }
 export function beginRound(s) {
   if (s.status !== 'ready') return;
@@ -134,7 +129,7 @@ export function newRun(round = 0, practice = false, random = Math.random) {
     time: ROUNDS[round][2],
     elapsed: 0,
     x: round === 5 ? -13 : 0,
-    z: round === 5 ? 0 : round === 4 ? 38 : 44,
+    z: round === 5 ? 0 : round === 4 ? 38 : 34,
     heading: Math.PI,
     speed: 0,
     progress: 0,
@@ -150,11 +145,8 @@ export function newRun(round = 0, practice = false, random = Math.random) {
     random,
     crowd: Array.from({ length: 455 }, (_, i) => ({
       id: i + 1,
-      x: bottlenecks[i]?.x ?? ((i % 25) - 12) * 2.25,
-      z:
-        bottlenecks[i]?.z ??
-        34 + Math.floor((i - bottlenecks.length) / 25) * 1.05,
-      blocker: i < bottlenecks.length,
+      x: (((i < 24 ? i : i + 1) % 49) - 24) * 1.15,
+      z: 34 + Math.floor((i < 24 ? i : i + 1) / 49) * 1.05,
       alive: true,
       finished: false,
       speed: 3.1 + random() * 2.1,
@@ -249,7 +241,7 @@ export function crowdStep(s, dt) {
     n.stagger = Math.max(0, n.stagger - dt);
     n.panic = Math.max(0, n.panic - dt);
     if (n.finished) continue;
-    if (moving && !n.stagger && !n.blocker) {
+    if (moving && !n.stagger) {
       n.z -= n.speed * dt;
       n.x = clamp(
         n.x + Math.sin(s.elapsed * 0.8 + n.phase) * dt * 0.55,
@@ -305,9 +297,7 @@ export function crowdStep(s, dt) {
       }
   if (s.elapsed >= s.nextEvent) {
     s.nextEvent = s.elapsed + 6 + s.random() * 5;
-    const candidates = s.crowd.filter(
-      (n) => n.alive && !n.finished && !n.blocker,
-    );
+    const candidates = s.crowd.filter((n) => n.alive && !n.finished);
     if (candidates.length) {
       const n = candidates[Math.floor(s.random() * candidates.length)];
       n.panic = 2;
@@ -513,14 +503,6 @@ export function tick(s, dt, input = {}) {
     s.z += z * speed * dt;
     if (s.round === 0) {
       crowdStep(s, dt);
-      for (let row = 0; row < 5; row++) {
-        const edge = 31 - row * 13,
-          gap = row % 2 ? 15 : -15;
-        if (previous.z >= edge && s.z < edge && Math.abs(s.x - gap) > 3.2) {
-          s.z = edge;
-          if (Math.abs(x) < 0.01) s.x = previous.x;
-        }
-      }
       s.x = clamp(s.x, -28.5, 28.5);
       s.z = Math.min(46, s.z);
       if (s.z < -33) finish(s, true, '결승선을 통과했습니다.');

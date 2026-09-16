@@ -1,4 +1,5 @@
 import { createMusic } from './music.js';
+import { CHANT_RECORDINGS } from './chant.js';
 
 export function createAudio() {
   let music = null;
@@ -30,20 +31,10 @@ export function createAudio() {
     try {
       const c = context();
       await Promise.all(
-        Array.from({ length: 10 }, async (_, i) => {
-          const response = await fetch(`./audio/chant/${i}.wav`);
+        CHANT_RECORDINGS.map(async (recording, i) => {
+          const response = await fetch(`./audio/chant/${recording.file}`);
           if (!response.ok) return;
-          const buffer = await c.decodeAudioData(await response.arrayBuffer()),
-            samples = buffer.getChannelData(0);
-          let a = 0,
-            b = samples.length - 1;
-          while (a < b && Math.abs(samples[a]) < 0.008) a++;
-          while (b > a && Math.abs(samples[b]) < 0.008) b--;
-          a = Math.max(0, a - 220);
-          b = Math.min(samples.length - 1, b + 440);
-          const trimmed = c.createBuffer(1, b - a + 1, buffer.sampleRate);
-          trimmed.getChannelData(0).set(samples.subarray(a, b + 1));
-          clips[i] = trimmed;
+          clips[i] = await c.decodeAudioData(await response.arrayBuffer());
         }),
       );
     } catch {
@@ -58,16 +49,19 @@ export function createAudio() {
     });
     voices.clear();
   }
-  function syllable(index, duration) {
-    if (muted || !clips[index]) return;
+  function chant(duration, elapsed = 0) {
+    const index = CHANT_RECORDINGS.findIndex(
+      (r) => Math.abs(r.duration - duration) < 0.01,
+    );
+    if (muted) return true;
+    if (!clips[index]) return false;
     try {
       const c = context();
       c.resume();
       const n = c.createBufferSource(),
         g = c.createGain();
       n.buffer = clips[index];
-      n.playbackRate.value =
-        clips[index].duration / Math.max(0.15, duration * 0.95);
+      n.playbackRate.value = 1;
       g.gain.value = 0.65;
       n.connect(g);
       g.connect(c.destination);
@@ -76,7 +70,8 @@ export function createAudio() {
         voices.delete(n);
         g.disconnect();
       };
-      n.start();
+      n.start(0, Math.min(elapsed, clips[index].duration));
+      return true;
     } catch {}
   }
   function play(kind) {
@@ -150,7 +145,7 @@ export function createAudio() {
         await c.resume();
         if (!loaded) {
           loaded = true;
-          preload();
+          await preload();
         }
         error = '';
         return c.state === 'running'
@@ -190,7 +185,7 @@ export function createAudio() {
       music?.volume(value);
     },
     play,
-    syllable,
+    chant,
     stopChant,
     mute(value) {
       muted = value;

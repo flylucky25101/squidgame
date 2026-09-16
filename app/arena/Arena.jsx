@@ -418,15 +418,20 @@ export default function Arena() {
                 (k.s || k.arrowdown ? 1 : 0) -
                 (k.w || k.arrowup ? 1 : 0),
             });
-            const chantKey = `${r.cycle}:${r.syllable}`;
+            const chantKey = `${r.cycle}`;
             if (
               r.round === 0 &&
               r.status === 'playing' &&
               r.light === 'green' &&
               chantKey !== lastChant
             ) {
-              audio.current.syllable(r.syllable, r.chant[r.syllable]);
-              lastChant = chantKey;
+              if (
+                audio.current.chant(
+                  r.chant.reduce((a, b) => a + b, 0),
+                  r.chantTime,
+                )
+              )
+                lastChant = chantKey;
             }
             if (r.status === 'dying') audio.current.stopChant();
             if (r.shotId !== lastShot) {
@@ -868,9 +873,9 @@ export default function Arena() {
               ) : s.status === 'ready' ? (
                 <button
                   className="arena-primary"
-                  onClick={() => {
+                  onClick={async () => {
                     clearInput();
-                    audio.current?.unlock();
+                    await audio.current?.unlock();
                     if (run.current.round !== 0) audio.current?.play('ready');
                     beginRound(run.current);
                     setS({ ...run.current });
@@ -930,7 +935,7 @@ export default function Arena() {
                     6경기 연속 도전
                   </button>
                   <br />
-                  오리지널 탈출 경기 + 생존 경기 각색 / v7
+                  오리지널 탈출 경기 + 생존 경기 각색 / v8
                 </p>
               </>
             )}

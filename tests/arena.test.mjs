@@ -28,6 +28,22 @@ test('456 distinct contestants and 5 minute opening limit', () => {
   assert.equal(s.crowd.length + 1, 456);
   assert.equal(new Set(s.crowd.map((n) => `${n.x}:${n.z}`)).size, 455);
   assert.equal(s.time, 300);
+  assert.ok(
+    s.crowd.every((n) => n.z >= s.z),
+    'nobody starts ahead of the player',
+  );
+  assert.ok(
+    s.crowd.every((n) => !n.blocker),
+    'no stationary NPC barricades',
+  );
+});
+
+test('opening field allows a straight route when moving only during the chant', () => {
+  const s = playing(0);
+  for (let i = 0; i < 15000 && s.status === 'playing'; i++)
+    tick(s, 0.016, s.light === 'green' ? { z: -1 } : {});
+  assert.equal(s.status, 'won', s.message);
+  assert.ok(Math.abs(s.x) < 2, 'no forced zigzag detour');
 });
 test('red movement starts a slow death sequence, standing is safe', () => {
   const s = playing(0);

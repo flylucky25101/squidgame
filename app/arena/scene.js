@@ -66,7 +66,7 @@ export function createArena(host, state, update, options = () => ({})) {
     box(0.2, 9, 0.3, 32.4, 4, z, '#d4e1cc');
   }
   box(61, 0.025, 0.22, 0, 0.02, -33, '#c84e65', field);
-  box(61, 0.025, 0.22, 0, 0.02, 45.5, '#fff5dd', field);
+  box(61, 0.025, 0.22, 0, 0.02, 33, '#fff5dd', field);
   const finishLabel = label('FINISH', 3, '#943b42');
   finishLabel.position.set(0, 0.4, -35);
   field.add(finishLabel);
