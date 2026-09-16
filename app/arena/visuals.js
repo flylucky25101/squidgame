@@ -129,6 +129,8 @@ export function instancedCrowd(scene, material) {
     ];
   const batches = parts.map(([g, c]) => {
     const m = new T.InstancedMesh(g, material(c), count);
+    m.castShadow = true;
+    m.receiveShadow = true;
     m.instanceMatrix.setUsage(T.DynamicDrawUsage);
     m.frustumCulled = false;
     scene.add(m);

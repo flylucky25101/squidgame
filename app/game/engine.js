@@ -1,3 +1,4 @@
+import { createPresentation, surfaceMaterial } from './rendering.js';
 import * as THREE from 'three';
 import { visibleNotes, LESSONS } from './mobile.js';
 import { createCharacter, animateCharacter } from './character.js';
@@ -66,7 +67,9 @@ export class CityEngine {
       '해문시 3D 게임 화면. WASD 이동, 마우스 조준, E 상호작용, F 차량 탑승.',
     );
     this.renderer.domElement.tabIndex = 0;
+    this.presentation = createPresentation(this.renderer);
     this.scene = new THREE.Scene();
+    this.scene.environmentIntensity = 0.35;
     this.scene.background = new THREE.Color('#29454d');
     this.scene.fog = new THREE.Fog('#29454d', 85, 250);
     this.camera = new THREE.PerspectiveCamera(52, 1, 0.1, 700);
@@ -133,13 +136,15 @@ export class CityEngine {
     if (!this.materials.has(key))
       this.materials.set(
         key,
-        new THREE.MeshStandardMaterial({
-          color,
-          roughness: 0.78,
-          metalness: 0.12,
-          emissive: color,
-          emissiveIntensity: glow,
-        }),
+        surfaceMaterial(
+          new THREE.MeshStandardMaterial({
+            color,
+            roughness: 0.78,
+            metalness: 0.12,
+            emissive: color,
+            emissiveIntensity: glow,
+          }),
+        ),
       );
     return this.materials.get(key);
   }
@@ -1190,7 +1195,11 @@ export class CityEngine {
       g.blackout ? 0.35 : 3.7,
       dt * 3,
     );
-    this.renderer.render(this.scene, this.camera);
+    this.presentation.render(
+      this.scene,
+      this.camera,
+      this.quality === 'low' || this.touchDevice,
+    );
     this.lastHud += dt;
     if (this.lastHud > 0.1) {
       this.lastHud = 0;
@@ -1219,6 +1228,7 @@ export class CityEngine {
     geos.forEach((g) => g.dispose());
     mats.forEach((m) => m.dispose());
     textures.forEach((t) => t.dispose());
+    this.presentation.dispose();
     this.renderer.dispose();
     this.renderer.domElement.remove();
   }

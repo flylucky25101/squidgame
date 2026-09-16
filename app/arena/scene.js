@@ -1,3 +1,4 @@
+import { createPresentation, surfaceMaterial } from '../game/rendering.js';
 import * as T from 'three';
 import { createCharacter, animateCharacter } from '../game/character.js';
 import { younghee, instancedCrowd, label, cameraPose } from './visuals.js';
@@ -14,7 +15,9 @@ export function createArena(host, state, update, options = () => ({})) {
   renderer.toneMapping = T.ACESFilmicToneMapping;
   host.appendChild(renderer.domElement);
   renderer.domElement.setAttribute('aria-label', '3D 생존 경기장');
+  const presentation = createPresentation(renderer);
   const scene = new T.Scene();
+  scene.environmentIntensity = 0.35;
   const adventure = createAdventureScene();
   scene.background = new T.Color('#719aa6');
   scene.fog = new T.Fog('#719aa6', 110, 245);
@@ -24,12 +27,14 @@ export function createArena(host, state, update, options = () => ({})) {
     if (!materials.has(c))
       materials.set(
         c,
-        new T.MeshStandardMaterial({ color: c, roughness: 0.8 }),
+        surfaceMaterial(
+          new T.MeshStandardMaterial({ color: c, roughness: 0.78 }),
+        ),
       );
     return materials.get(c);
   };
-  scene.add(new T.HemisphereLight('#e7f8ff', '#827158', 2.7));
-  const sun = new T.DirectionalLight('#fff0ce', 3);
+  scene.add(new T.HemisphereLight('#e7f8ff', '#827158', 1.65));
+  const sun = new T.DirectionalLight('#fff0ce', 2.6);
   sun.position.set(-35, 70, 15);
   sun.castShadow = true;
   sun.shadow.mapSize.set(1024, 1024);
@@ -40,7 +45,9 @@ export function createArena(host, state, update, options = () => ({})) {
     bottom: -55,
     far: 180,
   });
-  sun.shadow.bias = -0.001;
+  sun.shadow.bias = -0.00025;
+  sun.shadow.normalBias = 0.045;
+  sun.shadow.radius = 3;
   scene.add(sun);
   const common = new T.Group(),
     field = new T.Group(),
@@ -253,7 +260,10 @@ export function createArena(host, state, update, options = () => ({})) {
         '#73c7d7',
         glass,
       );
-      p.material = new T.MeshStandardMaterial({
+      p.material = new T.MeshPhysicalMaterial({
+        clearcoat: 1,
+        clearcoatRoughness: 0.08,
+        envMapIntensity: 1.4,
         color: '#73c7d7',
         metalness: 0.45,
         roughness: 0.17,
@@ -366,7 +376,9 @@ export function createArena(host, state, update, options = () => ({})) {
     const s = state(),
       opt = options();
     if (replacementRound(s.round)) {
-      adventure.render(s, camera, renderer, dt);
+      adventure.render(s, camera, renderer, dt, (world, view) =>
+        presentation.render(world, view, low),
+      );
       raf = requestAnimationFrame(frame);
       return;
     }
@@ -578,7 +590,7 @@ export function createArena(host, state, update, options = () => ({})) {
         1 - Math.exp(-dt * 5),
       );
     camera.lookAt(...pose.look);
-    renderer.render(scene, camera);
+    presentation.render(scene, camera, low);
     if (s.round === 0 && s.status === 'playing') {
       const w = Math.min(180, host.clientWidth * 0.28),
         h = w * 1.1,
@@ -610,6 +622,7 @@ export function createArena(host, state, update, options = () => ({})) {
   raf = requestAnimationFrame(frame);
   return () => {
     adventure.dispose();
+    presentation.dispose();
     cancelAnimationFrame(raf);
     observer.disconnect();
     const geometries = new Set(),

@@ -1,3 +1,4 @@
+import { surfaceMaterial } from '../game/rendering.js';
 import * as T from 'three';
 import { createCharacter, animateCharacter } from '../game/character.js';
 import { STORAGE, CELLS, PRESSES, ROADBLOCKS } from './adventure.js';
@@ -9,7 +10,20 @@ export function createAdventureScene() {
   scene.add(new T.AmbientLight('#b8cbe0', 0.8));
   const sun = new T.DirectionalLight('#b5d9ff', 2);
   sun.position.set(-15, 30, 10);
-  scene.add(sun);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(1024, 1024);
+  Object.assign(sun.shadow.camera, {
+    left: -25,
+    right: 25,
+    top: 32,
+    bottom: -25,
+    near: 0.1,
+    far: 100,
+  });
+  sun.shadow.normalBias = 0.04;
+  sun.shadow.bias = -0.0002;
+  sun.shadow.radius = 3;
+  scene.add(sun, sun.target);
   const mats = new Map(),
     geoms = new Set();
   function mat(color, metal = false) {
@@ -17,11 +31,17 @@ export function createAdventureScene() {
     if (!mats.has(key))
       mats.set(
         key,
-        new T.MeshStandardMaterial({
-          color,
-          roughness: metal ? 0.35 : 0.8,
-          metalness: metal ? 0.25 : 0.05,
-        }),
+        surfaceMaterial(
+          new T.MeshPhysicalMaterial({
+            clearcoat: metal ? 0.45 : 0,
+            clearcoatRoughness: 0.25,
+            color,
+            emissive: ['#ffffca', '#ff4e61', '#ffe398', '#77ffc0', '#ff304a'].includes(color) ? color : '#000000',
+            emissiveIntensity: 1.8,
+            roughness: metal ? 0.35 : 0.8,
+            metalness: metal ? 0.5 : 0.02,
+          }),
+        ),
       );
     return mats.get(key);
   }
@@ -30,6 +50,7 @@ export function createAdventureScene() {
     geoms.add(geo);
     const m = new T.Mesh(geo, mat(color, metal));
     m.position.set(x, y, z);
+    m.castShadow = m.receiveShadow = true;
     g.add(m);
     return m;
   }
@@ -224,7 +245,7 @@ export function createAdventureScene() {
   });
   let previous = null;
   return {
-    render(s, camera, renderer, dt) {
+    render(s, camera, renderer, dt, renderWorld) {
       const c = s.challenge;
       dark.visible = c.kind === 'blackout';
       factory.visible = c.kind === 'factory';
@@ -237,6 +258,9 @@ export function createAdventureScene() {
       marker.visible = player.visible;
       torch.visible = c.kind === 'blackout' && c.flash;
       const z = c.kind === 'blackout' ? c.z : -c.z;
+      scene.environmentIntensity = c.kind === 'blackout' ? 0.12 : 0.45;
+      sun.position.set(c.x - 15, 30, z + 10);
+      sun.target.position.set(c.x, 0, z - 8);
       player.position.set(c.x, c.y, z);
       player.rotation.set(
         dead ? Math.min(1.5, s.deathTime * 0.8) : 0,
@@ -314,7 +338,7 @@ export function createAdventureScene() {
         previous = s;
       } else camera.position.lerp(target, 1 - Math.exp(-dt * 7));
       camera.lookAt(c.x, 1, z - (c.kind === 'chase' ? 14 : 5));
-      renderer.render(scene, camera);
+      renderWorld(scene, camera);
     },
     dispose() {
       scene.traverse((o) => {

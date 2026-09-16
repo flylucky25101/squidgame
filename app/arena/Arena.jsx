@@ -935,7 +935,7 @@ export default function Arena() {
                     6경기 연속 도전
                   </button>
                   <br />
-                  오리지널 탈출 경기 + 생존 경기 각색 / v8
+                  오리지널 탈출 경기 + 생존 경기 각색 / v9
                 </p>
               </>
             )}
