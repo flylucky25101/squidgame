@@ -149,7 +149,10 @@ export function newRun(round = 0, practice = false, random = Math.random) {
       z: 34 + Math.floor((i < 24 ? i : i + 1) / 49) * 1.05,
       alive: true,
       finished: false,
-      speed: 3.1 + random() * 2.1,
+      // Fixed individual ability, overlapping the player's 6.5 m/s speed.
+      // No catch-up boost or head start: faster runners must earn their lead.
+      speed: 4.8 + random() * 1.2 + (i % 11) * 0.24,
+      reaction: 0.06 + random() * 0.2,
       phase: random() * 6.28,
       stagger: 0,
       panic: 0,
@@ -241,7 +244,7 @@ export function crowdStep(s, dt) {
     n.stagger = Math.max(0, n.stagger - dt);
     n.panic = Math.max(0, n.panic - dt);
     if (n.finished) continue;
-    if (moving && !n.stagger) {
+    if (moving && s.chantTime >= n.reaction && !n.stagger) {
       n.z -= n.speed * dt;
       n.x = clamp(
         n.x + Math.sin(s.elapsed * 0.8 + n.phase) * dt * 0.55,
@@ -505,7 +508,14 @@ export function tick(s, dt, input = {}) {
       crowdStep(s, dt);
       s.x = clamp(s.x, -28.5, 28.5);
       s.z = Math.min(46, s.z);
-      if (s.z < -33) finish(s, true, '결승선을 통과했습니다.');
+      if (s.z < -33) {
+        s.finishRank = s.crowd.filter((n) => n.finished).length + 1;
+        finish(
+          s,
+          true,
+          `${s.finishRank}번째로 결승선을 통과했습니다. 순위와 관계없이 생존입니다.`,
+        );
+      }
     } else squidStep(s, dt, previous);
   }
   if (s.round === 2) {

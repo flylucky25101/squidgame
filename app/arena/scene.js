@@ -4,6 +4,7 @@ import { createCharacter, animateCharacter } from '../game/character.js';
 import { younghee, instancedCrowd, label, cameraPose } from './visuals.js';
 import { replacementRound } from './challenges.js';
 import { createAdventureScene } from './adventure-scene.js';
+import { arenaSurface, crowdContactShadows } from './surfaces.js';
 export function createArena(host, state, update, options = () => ({})) {
   const renderer = new T.WebGLRenderer({
     antialias: true,
@@ -33,9 +34,9 @@ export function createArena(host, state, update, options = () => ({})) {
       );
     return materials.get(c);
   };
-  scene.add(new T.HemisphereLight('#e7f8ff', '#827158', 1.65));
+  scene.add(new T.HemisphereLight('#b9d6e6', '#78644e', 1.05));
   const sun = new T.DirectionalLight('#fff0ce', 2.6);
-  sun.position.set(-35, 70, 15);
+  sun.position.set(-38, 48, -18);
   sun.castShadow = true;
   sun.shadow.mapSize.set(1024, 1024);
   Object.assign(sun.shadow.camera, {
@@ -63,11 +64,17 @@ export function createArena(host, state, update, options = () => ({})) {
     parent.add(m);
     return m;
   }
-  box(66, 1, 110, 0, -0.6, 3, '#cbb491');
+  const ground = box(66, 1, 110, 0, -0.6, 3, '#cbb491');
+  ground.material = arenaSurface('sand', renderer);
   // The camera side is deliberately open. No opaque near wall can hide play.
-  box(66, 12, 1, 0, 5.5, -51, '#bed7d1');
-  box(1, 9, 110, -33, 4, 3, '#a1bcb6');
-  box(1, 9, 110, 33, 4, 3, '#a1bcb6');
+  const plaster = arenaSurface('plaster', renderer);
+  box(66, 12, 1, 0, 5.5, -51, '#bed7d1').material = plaster;
+  box(1, 9, 110, -33, 4, 3, '#a1bcb6').material = plaster;
+  box(1, 9, 110, 33, 4, 3, '#a1bcb6').material = plaster;
+  for (const x of [-32.3, 32.3]) {
+    box(0.25, 0.8, 110, x, 0.3, 3, '#526b62');
+    box(0.4, 0.25, 110, x, 8.4, 3, '#e0d1ab');
+  }
   for (let z = -45; z < 54; z += 10) {
     box(0.2, 9, 0.3, -32.4, 4, z, '#d4e1cc');
     box(0.2, 9, 0.3, 32.4, 4, z, '#d4e1cc');
@@ -98,6 +105,7 @@ export function createArena(host, state, update, options = () => ({})) {
   const crowd = instancedCrowd(scene, mat),
     player = createCharacter('#278673', false, true, mat, false);
   scene.add(player);
+  const contactShadows = crowdContactShadows(scene, 456);
   const marker = label('▼ 456', 1.5, '#fff384');
   marker.renderOrder = 1000;
   scene.add(marker);
@@ -394,6 +402,7 @@ export function createArena(host, state, update, options = () => ({})) {
     scene.background.set(dark ? '#101725' : '#719aa6');
     scene.fog.color.copy(scene.background);
     crowd.update(s, visualTime);
+    contactShadows.update(s);
     player.visible =
       s.round === 0 || s.round === 3 || s.round === 4 || s.round === 5;
     player.position.set(s.round === 3 ? 0 : s.x, 0, s.round === 3 ? 8.8 : s.z);
@@ -633,6 +642,7 @@ export function createArena(host, state, update, options = () => ({})) {
       for (const m of o.material ? [].concat(o.material) : []) {
         mats.add(m);
         if (m.map) textures.add(m.map);
+        if (m.bumpMap) textures.add(m.bumpMap);
       }
     });
     geometries.forEach((g) => g.dispose());

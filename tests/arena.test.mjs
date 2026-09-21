@@ -45,6 +45,28 @@ test('opening field allows a straight route when moving only during the chant', 
   assert.equal(s.status, 'won', s.message);
   assert.ok(Math.abs(s.x) < 2, 'no forced zigzag detour');
 });
+
+test('faster contestants finish ahead without a head start or catch-up boost', () => {
+  for (const seed of [1, 2, 3]) {
+    let value = seed;
+    const random = () =>
+      (value = (Math.imul(value, 1664525) + 1013904223) >>> 0) / 4294967296;
+    const s = newRun(0, false, random);
+    const speeds = s.crowd.map((n) => n.speed);
+    assert.ok(s.crowd.every((n) => n.z >= s.z));
+    assert.ok(speeds.some((v) => v > 6.5) && speeds.some((v) => v < 6.5));
+    beginRound(s);
+    for (let i = 0; i < 16000 && s.status === 'playing'; i++)
+      tick(s, 0.016, s.light === 'green' ? { z: -1 } : {});
+    assert.equal(s.status, 'won');
+    assert.ok(s.finishRank > 1);
+    assert.equal(s.finishRank, s.crowd.filter((n) => n.finished).length + 1);
+    assert.deepEqual(
+      s.crowd.map((n) => n.speed),
+      speeds,
+    );
+  }
+});
 test('red movement starts a slow death sequence, standing is safe', () => {
   const s = playing(0);
   s.light = 'red';

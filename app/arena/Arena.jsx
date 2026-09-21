@@ -574,6 +574,12 @@ export default function Arena() {
                 (dying || s.status === 'lost' ? 0 : 1)}
             </strong>{' '}
             / 456 생존
+            <small style={{ display: 'block' }}>
+              결승 통과{' '}
+              {s.crowd.filter((n) => n.finished).length +
+                (s.status === 'won' ? 1 : 0)}
+              명 · 순위와 관계없이 통과
+            </small>
             <button
               onClick={() => {
                 options.current.overview = !overview;
@@ -935,7 +941,7 @@ export default function Arena() {
                     6경기 연속 도전
                   </button>
                   <br />
-                  오리지널 탈출 경기 + 생존 경기 각색 / v9
+                  오리지널 탈출 경기 + 생존 경기 각색 / v10
                 </p>
               </>
             )}

@@ -577,11 +577,18 @@
   z-index: 4;
 }
 .crowd-count {
+  flex-wrap: wrap;
+  max-width: 275px;
   font-size: 13px;
   color: #d5e3d9;
   display: flex;
   align-items: center;
   gap: 8px;
+}
+.crowd-count small {
+  flex-basis: 100%;
+  order: 3;
+  font-size: 11px;
 }
 .crowd-count strong {
   font-size: 23px;

@@ -149,6 +149,7 @@ export function instancedCrowd(scene, material) {
             !n.blocker &&
             s.status === 'playing' &&
             s.light === 'green' &&
+            s.chantTime >= n.reaction &&
             n.alive &&
             !n.finished &&
             !n.stagger;
