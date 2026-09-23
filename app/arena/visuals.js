@@ -127,6 +127,12 @@ export function instancedCrowd(scene, material) {
         [1, 1, 1],
       ],
     ];
+  // Keep the upper end of each limb anchored at its joint while rotating.
+  for (let j = 3; j <= 6; j++) {
+    const halfLength = j <= 4 ? 0.385 : 0.325;
+    parts[j][0].translate(0, -halfLength, 0);
+    parts[j][2][1] += halfLength;
+  }
   const batches = parts.map(([g, c]) => {
     const m = new T.InstancedMesh(g, material(c), count);
     for (let i = 0; i < count; i++) {
@@ -157,8 +163,14 @@ export function instancedCrowd(scene, material) {
             n.alive &&
             !n.finished &&
             !n.stagger;
-        root.position.set(n.x, n.alive ? 0 : -0.15, n.z);
-        root.rotation.set((n.fall * Math.PI) / 2, Math.PI, 0);
+        const stride = time * (7.5 + n.speed * 0.3) + n.phase;
+        const bounce = moving ? Math.abs(Math.sin(stride)) * 0.045 : 0;
+        root.position.set(n.x, n.alive ? bounce : -0.15, n.z);
+        root.rotation.set(
+          (n.fall * Math.PI) / 2 + (moving ? 0.07 : 0),
+          Math.PI,
+          moving ? Math.sin(stride) * 0.025 : 0,
+        );
         root.updateMatrix();
         parts.forEach((p, j) => {
           part.position.set(...p[2]);
@@ -166,7 +178,7 @@ export function instancedCrowd(scene, material) {
           part.rotation.set(0, 0, 0);
           if (j >= 3 && j <= 6)
             part.rotation.x = moving
-              ? Math.sin(time * 9 + n.phase) * (j % 2 ? 1 : -1) * 0.55
+              ? Math.sin(stride) * (j % 2 ? 1 : -1) * (j <= 4 ? 0.55 : -0.65)
               : 0;
           if (j >= 5 && j <= 6 && n.panic > 0)
             part.rotation.z = (j === 5 ? -1 : 1) * 2.3;
