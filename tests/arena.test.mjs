@@ -67,6 +67,16 @@ test('faster contestants finish ahead without a head start or catch-up boost', (
     );
   }
 });
+test('idle player cannot be carried to the finish by passing contestants', () => {
+  const s = playing(0);
+  const start = { x: s.x, z: s.z };
+  frames(s, 6500);
+  assert.equal(s.status, 'playing');
+  assert.equal(s.x, start.x);
+  assert.equal(s.z, start.z);
+  assert.ok(s.crowd.some((n) => n.finished));
+});
+
 test('red movement starts a slow death sequence, standing is safe', () => {
   const s = playing(0);
   s.light = 'red';

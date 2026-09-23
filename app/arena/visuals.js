@@ -85,37 +85,37 @@ export function instancedCrowd(scene, material) {
         [1, 1, 0.72],
       ],
       [
-        new T.SphereGeometry(0.23, 8, 6),
+        new T.SphereGeometry(0.23, 12, 8),
         '#d6b590',
         [0, 1.93, 0],
         [1, 1.15, 0.9],
       ],
       [
-        new T.SphereGeometry(0.24, 8, 5),
+        new T.SphereGeometry(0.24, 12, 8),
         '#292723',
         [0, 2.09, -0.03],
         [1, 0.65, 0.95],
       ],
       [
-        new T.BoxGeometry(0.19, 0.77, 0.22),
+        new T.CapsuleGeometry(0.105, 0.56, 3, 8),
         '#206955',
         [-0.19, 0.48, 0],
         [1, 1, 1],
       ],
       [
-        new T.BoxGeometry(0.19, 0.77, 0.22),
+        new T.CapsuleGeometry(0.105, 0.56, 3, 8),
         '#206955',
         [0.19, 0.48, 0],
         [1, 1, 1],
       ],
       [
-        new T.BoxGeometry(0.16, 0.65, 0.18),
+        new T.CapsuleGeometry(0.09, 0.47, 3, 8),
         '#328c78',
         [-0.4, 1.19, 0],
         [1, 1, 1],
       ],
       [
-        new T.BoxGeometry(0.16, 0.65, 0.18),
+        new T.CapsuleGeometry(0.09, 0.47, 3, 8),
         '#328c78',
         [0.4, 1.19, 0],
         [1, 1, 1],
@@ -129,6 +129,10 @@ export function instancedCrowd(scene, material) {
     ];
   const batches = parts.map(([g, c]) => {
     const m = new T.InstancedMesh(g, material(c), count);
+    for (let i = 0; i < count; i++) {
+      const tone = 0.78 + ((i * 37) % 23) / 100;
+      m.setColorAt(i, new T.Color(tone, tone, tone));
+    }
     m.castShadow = true;
     m.receiveShadow = true;
     m.instanceMatrix.setUsage(T.DynamicDrawUsage);

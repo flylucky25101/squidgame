@@ -294,8 +294,16 @@ export function crowdStep(s, dt) {
           dz = s.z - n.z,
           d = Math.hypot(dx, dz);
         if (d < 1) {
-          s.x += (d > 1e-5 ? dx / d : 1) * (1 - d);
-          s.z += (d > 1e-5 ? dz / d : 0) * (1 - d);
+          const px = (d > 1e-5 ? dx / d : 1) * (1 - d);
+          const pz = (d > 1e-5 ? dz / d : 0) * (1 - d);
+          if (s.speed > 0.08) {
+            s.x += px;
+            s.z += pz;
+          } else {
+            // A passing runner yields to a stopped player, never carries them.
+            n.x -= px;
+            n.z -= pz;
+          }
         }
       }
   if (s.elapsed >= s.nextEvent) {
