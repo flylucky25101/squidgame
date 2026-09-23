@@ -139,7 +139,8 @@ export function instancedCrowd(scene, material) {
       const tone = 0.78 + ((i * 37) % 23) / 100;
       m.setColorAt(i, new T.Color(tone, tone, tone));
     }
-    m.castShadow = true;
+    // Contact shadows ground the crowd without a second geometry pass per light.
+    m.castShadow = false;
     m.receiveShadow = true;
     m.instanceMatrix.setUsage(T.DynamicDrawUsage);
     m.frustumCulled = false;
@@ -150,6 +151,9 @@ export function instancedCrowd(scene, material) {
     part = new T.Object3D(),
     matrix = new T.Matrix4();
   return {
+    setVisible(visible) {
+      for (const m of batches) m.visible = visible;
+    },
     update(s, time) {
       for (const m of batches) m.visible = s.round === 0;
       if (s.round !== 0) return;

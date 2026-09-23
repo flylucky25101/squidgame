@@ -364,17 +364,17 @@ export function createArena(host, state, update, options = () => ({})) {
       return;
     }
     const requested = options().quality || 'auto';
-    if (requested === 'auto' && now - last > 32 && now - last < 150)
+    if (requested === 'auto' && now - last > 24)
       slowFrames++;
     else slowFrames = Math.max(0, slowFrames - 0.2);
-    if (slowFrames > 90) autoLow = true;
+    if (slowFrames > 45) autoLow = true;
     const low =
       requested === 'low' ||
       (requested === 'auto' && (autoLow || window.innerWidth < 750));
-    const nextQuality = low ? 'low' : 'high';
+    const nextQuality = low ? 'low' : requested === 'high' ? 'high' : 'balanced';
     if (quality !== nextQuality) {
       quality = nextQuality;
-      renderer.setPixelRatio(low ? 1 : Math.min(devicePixelRatio, 1.5));
+      renderer.setPixelRatio(nextQuality === 'high' ? Math.min(devicePixelRatio, 1.5) : 1);
       renderer.shadowMap.enabled = !low;
       resize();
     }
@@ -385,7 +385,7 @@ export function createArena(host, state, update, options = () => ({})) {
       opt = options();
     if (replacementRound(s.round)) {
       adventure.render(s, camera, renderer, dt, (world, view) =>
-        presentation.render(world, view, low),
+        presentation.render(world, view, requested !== 'high' || low),
       );
       raf = requestAnimationFrame(frame);
       return;
@@ -599,7 +599,7 @@ export function createArena(host, state, update, options = () => ({})) {
         1 - Math.exp(-dt * 5),
       );
     camera.lookAt(...pose.look);
-    presentation.render(scene, camera, low);
+    presentation.render(scene, camera, requested !== 'high' || low);
     if (s.round === 0 && s.status === 'playing') {
       const w = Math.min(180, host.clientWidth * 0.28),
         h = w * 1.1,
@@ -620,8 +620,11 @@ export function createArena(host, state, update, options = () => ({})) {
         h,
       );
       renderer.clearDepth();
+      // The doll inset must not draw all 455 contestants a second time.
+      crowd.setVisible(false);
       renderer.shadowMap.autoUpdate = false;
       renderer.render(scene, dollCamera);
+      crowd.setVisible(true);
       renderer.shadowMap.autoUpdate = true;
       renderer.setScissorTest(false);
       renderer.setViewport(0, 0, host.clientWidth, host.clientHeight);
