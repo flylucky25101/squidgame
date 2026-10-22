@@ -149,24 +149,41 @@ export function instancedCrowd(scene, material) {
   });
   const root = new T.Object3D(),
     part = new T.Object3D(),
-    matrix = new T.Matrix4();
+    matrix = new T.Matrix4(),
+    viewProjection = new T.Matrix4(),
+    frustum = new T.Frustum(),
+    bounds = new T.Sphere(new T.Vector3(), 1.55),
+    tones = Float32Array.from(
+      { length: count },
+      (_, i) => 0.78 + ((i * 37) % 23) / 100,
+    );
   return {
     setVisible(visible) {
       for (const m of batches) m.visible = visible;
     },
-    update(s, time) {
+    update(s, time, camera) {
       for (const m of batches) m.visible = s.round === 0;
       if (s.round !== 0) return;
+      if (camera)
+        frustum.setFromProjectionMatrix(
+          viewProjection.multiplyMatrices(
+            camera.projectionMatrix,
+            camera.matrixWorldInverse,
+          ),
+        );
+      let visibleCount = 0;
       for (let i = 0; i < count; i++) {
-        const n = s.crowd[i],
-          moving =
-            !n.blocker &&
-            s.status === 'playing' &&
-            s.light === 'green' &&
-            s.chantTime >= n.reaction &&
-            n.alive &&
-            !n.finished &&
-            !n.stagger;
+        const n = s.crowd[i];
+        bounds.center.set(n.x, n.alive ? 1.15 : 0.7, n.z);
+        if (camera && !frustum.intersectsSphere(bounds)) continue;
+        const moving =
+          !n.blocker &&
+          s.status === 'playing' &&
+          s.light === 'green' &&
+          s.chantTime >= n.reaction &&
+          n.alive &&
+          !n.finished &&
+          !n.stagger;
         const stride = time * (7.5 + n.speed * 0.3) + n.phase;
         const bounce = moving ? Math.abs(Math.sin(stride)) * 0.045 : 0;
         root.position.set(n.x, n.alive ? bounce : -0.15, n.z);
@@ -176,7 +193,8 @@ export function instancedCrowd(scene, material) {
           moving ? Math.sin(stride) * 0.025 : 0,
         );
         root.updateMatrix();
-        parts.forEach((p, j) => {
+        for (let j = 0; j < parts.length; j++) {
+          const p = parts[j];
           part.position.set(...p[2]);
           part.scale.set(...p[3]);
           part.rotation.set(0, 0, 0);
@@ -188,10 +206,22 @@ export function instancedCrowd(scene, material) {
             part.rotation.z = (j === 5 ? -1 : 1) * 2.3;
           part.updateMatrix();
           matrix.multiplyMatrices(root.matrix, part.matrix);
-          batches[j].setMatrixAt(i, matrix);
-        });
+          const batch = batches[j];
+          batch.setMatrixAt(visibleCount, matrix);
+          const color = batch.instanceColor.array,
+            offset = visibleCount * 3,
+            tone = tones[i];
+          color[offset] = tone;
+          color[offset + 1] = tone;
+          color[offset + 2] = tone;
+        }
+        visibleCount++;
       }
-      for (const m of batches) m.instanceMatrix.needsUpdate = true;
+      for (const m of batches) {
+        m.count = visibleCount;
+        m.instanceMatrix.needsUpdate = true;
+        m.instanceColor.needsUpdate = true;
+      }
     },
   };
 }

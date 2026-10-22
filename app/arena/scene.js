@@ -437,6 +437,21 @@ export function createArena(host, state, update, options = () => ({})) {
     update(dt);
     const s = state(),
       opt = options();
+    if (!replacementRound(s.round)) {
+      const pose = cameraPose(s, camera.aspect, opt.overview);
+      if (previousRun !== s) {
+        camera.position.set(...pose.position);
+        previousRun = s;
+        seenShot = s.shotId;
+        shotTime = 0;
+      } else
+        camera.position.lerp(
+          new T.Vector3(...pose.position),
+          1 - Math.exp(-dt * 5),
+        );
+      camera.lookAt(...pose.look);
+      camera.updateMatrixWorld();
+    }
     if (replacementRound(s.round)) {
       adventure.render(s, camera, renderer, dt, (world, view) =>
         presentation.render(world, view, requested !== 'high' || low),
@@ -455,7 +470,7 @@ export function createArena(host, state, update, options = () => ({})) {
     const dark = s.round === 2 || s.round === 4;
     scene.background.set(dark ? '#101725' : '#719aa6');
     scene.fog.color.copy(scene.background);
-    crowd.update(s, visualTime);
+    crowd.update(s, visualTime, camera);
     contactShadows.update(s);
     player.visible =
       s.round === 0 || s.round === 3 || s.round === 4 || s.round === 5;
@@ -642,18 +657,6 @@ export function createArena(host, state, update, options = () => ({})) {
     if (!opt.paused) shotTime = Math.max(0, shotTime - dt);
     shotLine.visible = shotTime > 0;
     flash.intensity = shotTime > 0 ? 8 : 0;
-    const pose = cameraPose(s, camera.aspect, opt.overview);
-    if (previousRun !== s) {
-      camera.position.set(...pose.position);
-      previousRun = s;
-      seenShot = s.shotId;
-      shotTime = 0;
-    } else
-      camera.position.lerp(
-        new T.Vector3(...pose.position),
-        1 - Math.exp(-dt * 5),
-      );
-    camera.lookAt(...pose.look);
     presentation.render(scene, camera, requested !== 'high' || low);
     if (s.round === 0 && s.status === 'playing') {
       const w = Math.min(180, host.clientWidth * 0.28),
