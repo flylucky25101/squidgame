@@ -813,7 +813,8 @@ export default function Arena() {
                   <option value="high">높음</option>
                 </select>
                 <small>
-                  자동은 작은 화면·느린 프레임에서 그림자와 해상도를 낮춥니다.
+                  자동은 그림자·후처리를 줄여 프레임을 우선합니다. 높음에서 켤
+                  수 있습니다.
                 </small>
               </label>
             )}

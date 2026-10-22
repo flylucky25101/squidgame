@@ -364,18 +364,30 @@ export function createArena(host, state, update, options = () => ({})) {
       return;
     }
     const requested = options().quality || 'auto';
-    if (requested === 'auto' && now - last > 24)
-      slowFrames++;
+    if (requested === 'auto' && now - last > 24) slowFrames++;
     else slowFrames = Math.max(0, slowFrames - 0.2);
     if (slowFrames > 45) autoLow = true;
     const low =
       requested === 'low' ||
       (requested === 'auto' && (autoLow || window.innerWidth < 750));
-    const nextQuality = low ? 'low' : requested === 'high' ? 'high' : 'balanced';
+    const nextQuality = low
+      ? 'low'
+      : requested === 'high'
+        ? 'high'
+        : 'balanced';
     if (quality !== nextQuality) {
       quality = nextQuality;
-      renderer.setPixelRatio(nextQuality === 'high' ? Math.min(devicePixelRatio, 1.5) : 1);
-      renderer.shadowMap.enabled = !low;
+      renderer.setPixelRatio(
+        nextQuality === 'high'
+          ? Math.min(devicePixelRatio, 1.5)
+          : nextQuality === 'low'
+            ? 0.75
+            : 1,
+      );
+      // Reserve real-time shadow maps and post-processing for explicit High.
+      // On the 456-person opening round the instanced crowd makes this the
+      // largest GPU cost on many desktop integrated graphics adapters.
+      renderer.shadowMap.enabled = nextQuality === 'high';
       resize();
     }
     const dt = Math.min((now - last) / 1000, 0.05);
