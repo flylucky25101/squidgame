@@ -135,7 +135,16 @@ export function createArena(host, state, update, options = () => ({})) {
     branch.rotation.z = sign * 0.8;
     field.add(branch);
   }
-  const crowd = instancedCrowd(scene, mat),
+  // Hundreds of repeated contestants do not need per-pixel procedural grain
+  // or environment reflections. Keep their colors lit and legible with a
+  // cheaper diffuse material; the authored floor and walls keep full detail.
+  const crowdMaterial = (color) =>
+    new T.MeshLambertMaterial({
+      color,
+      emissive: color,
+      emissiveIntensity: 0.12,
+    });
+  const crowd = instancedCrowd(scene, crowdMaterial),
     player = createCharacter('#278673', false, true, mat, false);
   scene.add(player);
   const contactShadows = crowdContactShadows(scene, 456);
