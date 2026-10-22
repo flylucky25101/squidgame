@@ -17,8 +17,16 @@ export function createArena(host, state, update, options = () => ({})) {
   host.appendChild(renderer.domElement);
   renderer.domElement.setAttribute('aria-label', '3D 생존 경기장');
   const presentation = createPresentation(renderer);
-  const scene = new T.Scene();
+  const scene = new T.Scene(),
+    dollInsetScene = new T.Scene();
   scene.environmentIntensity = 0.35;
+  dollInsetScene.environment = presentation.environment;
+  dollInsetScene.environmentIntensity = 0.45;
+  dollInsetScene.background = new T.Color('#789c9d');
+  dollInsetScene.add(new T.HemisphereLight('#c4e1e7', '#625347', 1.25));
+  const dollSun = new T.DirectionalLight('#ffe4b8', 2.4);
+  dollSun.position.set(-5, 11, 8);
+  dollInsetScene.add(dollSun);
   const adventure = createAdventureScene();
   scene.background = new T.Color('#719aa6');
   scene.fog = new T.Fog('#719aa6', 110, 245);
@@ -87,6 +95,31 @@ export function createArena(host, state, update, options = () => ({})) {
   const doll = younghee(mat);
   doll.position.set(0, 0, -44);
   field.add(doll);
+  // The portrait uses a small dedicated scene so its camera does not redraw
+  // the arena, guards and props a second time every frame.
+  const dollPortrait = younghee(mat);
+  dollInsetScene.add(dollPortrait);
+  const portraitBackdrop = new T.Mesh(
+    new T.PlaneGeometry(18, 14),
+    mat('#77968d'),
+  );
+  portraitBackdrop.position.set(0, 5, -3.4);
+  dollInsetScene.add(portraitBackdrop);
+  const portraitTrunk = new T.Mesh(
+    new T.CylinderGeometry(0.45, 0.8, 12, 8),
+    mat('#51463b'),
+  );
+  portraitTrunk.position.set(0, 5.4, -3.8);
+  dollInsetScene.add(portraitTrunk);
+  for (const side of [-1, 1]) {
+    const branch = new T.Mesh(
+      new T.CylinderGeometry(0.16, 0.34, 7, 7),
+      mat('#51463b'),
+    );
+    branch.position.set(side * 2, 9.2, -3.7);
+    branch.rotation.z = side * 0.8;
+    dollInsetScene.add(branch);
+  }
   const trunk = new T.Mesh(
     new T.CylinderGeometry(0.7, 1.3, 14, 9),
     mat('#665343'),
@@ -123,8 +156,8 @@ export function createArena(host, state, update, options = () => ({})) {
   playerHalo.renderOrder = 999;
   scene.add(playerHalo);
   const dollCamera = new T.PerspectiveCamera(38, 1, 0.1, 100);
-  dollCamera.position.set(0, 8, -28);
-  dollCamera.lookAt(0, 6.6, -44);
+  dollCamera.position.set(0, 8, 16);
+  dollCamera.lookAt(0, 6.6, 0);
   const guards = [];
   for (const side of [-1, 1])
     for (let z = -38; z <= 42; z += 20) {
@@ -502,6 +535,7 @@ export function createArena(host, state, update, options = () => ({})) {
       headTarget,
       opt.paused ? 0 : Math.min(1, dt * 5),
     );
+    dollPortrait.userData.head.rotation.y = doll.userData.head.rotation.y;
     defender.position.set(s.opponentX, 0, s.opponentZ);
     defender.lookAt(s.x, 0, s.z);
     animateCharacter(
@@ -632,12 +666,7 @@ export function createArena(host, state, update, options = () => ({})) {
         h,
       );
       renderer.clearDepth();
-      // The doll inset must not draw all 455 contestants a second time.
-      crowd.setVisible(false);
-      renderer.shadowMap.autoUpdate = false;
-      renderer.render(scene, dollCamera);
-      crowd.setVisible(true);
-      renderer.shadowMap.autoUpdate = true;
+      renderer.render(dollInsetScene, dollCamera);
       renderer.setScissorTest(false);
       renderer.setViewport(0, 0, host.clientWidth, host.clientHeight);
     }
@@ -652,14 +681,15 @@ export function createArena(host, state, update, options = () => ({})) {
     const geometries = new Set(),
       mats = new Set(),
       textures = new Set();
-    scene.traverse((o) => {
-      if (o.geometry) geometries.add(o.geometry);
-      for (const m of o.material ? [].concat(o.material) : []) {
-        mats.add(m);
-        if (m.map) textures.add(m.map);
-        if (m.bumpMap) textures.add(m.bumpMap);
-      }
-    });
+    for (const renderScene of [scene, dollInsetScene])
+      renderScene.traverse((o) => {
+        if (o.geometry) geometries.add(o.geometry);
+        for (const m of o.material ? [].concat(o.material) : []) {
+          mats.add(m);
+          if (m.map) textures.add(m.map);
+          if (m.bumpMap) textures.add(m.bumpMap);
+        }
+      });
     geometries.forEach((g) => g.dispose());
     mats.forEach((m) => m.dispose());
     textures.forEach((t) => t.dispose());
